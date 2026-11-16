@@ -1,0 +1,26 @@
+## Interface: 16001
+## Title: Last Breath Forever
+## Notes: Shows about how many seconds your target has left, live in combat.
+## Notes-deDE: Zeigt, wie viele Sekunden dein Ziel ungefähr noch lebt, live im Kampf.
+## Notes-ruRU: Показывает, сколько примерно секунд осталось жить твоей цели, прямо в бою.
+## Notes-esES: Muestra cuántos segundos le quedan más o menos a tu objetivo, en pleno combate.
+## Notes-esMX: Muestra cuántos segundos le quedan más o menos a tu objetivo, en pleno combate.
+## Notes-frFR: Affiche combien de secondes il reste environ à ta cible, en plein combat.
+## Notes-ptBR: Mostra quantos segundos mais ou menos restam ao seu alvo, em pleno combate.
+## Notes-koKR: 전투 중 대상이 대략 몇 초 뒤에 죽는지 보여 줍니다.
+## Notes-zhCN: 在战斗中显示你的目标大约还能活几秒。
+## Notes-zhTW: 在戰鬥中顯示你的目標大約還能活幾秒。
+## Version: 0.1.0
+## IconTexture: Interface\AddOns\LastBreathForever\icon
+## AddonCompartmentFunc: LastBreathForever_OnCompartmentClick
+## AddonCompartmentFuncOnEnter: LastBreathForever_OnCompartmentEnter
+## AddonCompartmentFuncOnLeave: LastBreathForever_OnCompartmentLeave
+## SavedVariables: LastBreathForeverDB
+## Author: KesaObscura
+## X-License: MIT
+## X-Website: https://github.com/KesaObscura/LastBreathForever
+
+Locale.lua
+Skin.lua
+Core.lua
+Options.lua

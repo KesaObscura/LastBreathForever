@@ -5,6 +5,33 @@ how many seconds your target has left** ("~12 s"), live in combat. Finish the lo
 targets or save the cooldown. Part of the Forever series with
 [Full Mana Forever](https://github.com/KesaObscura/FullManaForever).
 
-**Status: in development.** No release yet.
+**Status: test versions.** No release yet.
+
+## What it shows
+
+- **About how many seconds your target has left** ("~12 s"), live in combat: solo, in a group, in
+  dungeons and on bosses. It is an estimate from how fast the target has been losing health in
+  this fight, so it is always "about", never exact.
+- The seconds appear after a few hits, and only for targets that were (almost) full when the fight
+  with them began: no number is better than a wrong one.
+- In the open world a target you come back to in the same fight keeps its seconds.
+- **Show from**: only once about 30 s to 10 min or less are left, or always.
+- **Last seconds in red**, **only elites and bosses**, size, icon, position.
+- 9 languages: English, Deutsch, Español (EU and AL), Français, Русский, 한국어, Português,
+  简体中文, 繁體中文. The addon follows your game language.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `/lbf` | Opens the settings (also: the addon menu at the minimap) |
+| `/lbf unlock` | Lets you drag the seconds where you want them |
+| `/lbf lock` | Locks them in place (a fight locks them too) |
+| `/lbf reset` | Puts them back in the middle of the screen |
+| `/lbf help` | Lists the commands |
+
+## Install
+
+Unzip into `World of Warcraft/_forever_/Interface/AddOns/` (folder `LastBreathForever`).
 
 License: MIT.
