@@ -10,11 +10,14 @@ local Skin = ns.Skin
 local TICK = 0.2
 local MIN_HITS = 3         -- hits on the target before an estimate shows
 local MIN_TIME = 2         -- seconds since the first hit before an estimate shows
-local WAS_FULL = 0.90      -- the target must have had at least this share at the first hit
+local FULL = 0.90          -- from this share up at the first hit the target counts as full
+local STEP = 0.05          -- below that: bands of this width, each with its own estimate
+local LOWEST = 0.20        -- a target first hit below this share gets no estimate
+local LOST = 0.05          -- a band's estimate shows once the target is this far below the band
 local CAP = 3600           -- the longest estimate (seconds)
 local SLOTS = 8            -- targets remembered during one fight
 ns.LIMITS = { 0, 30, 60, 120, 300, 600 } -- "Show from": 0 = always
-ns.URGENTS = { 0, 3, 5, 10 }             -- "Last seconds in red": 0 = off
+ns.URGENTS = { 0, 3, 5, 10, 15, 20, 30, 45, 60 } -- "Last seconds in red": 0 = off
 local SECONDS = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 50, 60,
   75, 90, 120, 150, 180, 240, 300, 450, 600, 900, 1200, 1800, 2700, 3600 }
 
@@ -90,8 +93,22 @@ end
 ------------------------------------------------------------------------
 -- the frame on screen
 ------------------------------------------------------------------------
-local hud, live, textN, textU, icon, icon2, sample, unlockBg, lockBtn, setBtn
-local slots = {}   -- [i] = { frame, guid, hit, lastHit, hits, used }
+local hud, icon2, sample, unlockBg, lockBtn, setBtn
+-- A target may already be hurt when its first hit is seen. The addon cannot read how much, so
+-- the health scale is cut into bands: BANDS[k] = { lo, hi, start } (start = the share the
+-- estimate of that band counts from). Every band has its own seconds on screen; the game shows
+-- the one whose band the target was in at its first hit, and nothing else.
+local BANDS = { { lo = FULL, hi = 1.01, start = 1 } }
+do
+  local hi = FULL
+  while hi - STEP >= LOWEST - 0.001 do
+    BANDS[#BANDS + 1] = { lo = hi - STEP, hi = hi, start = hi - STEP / 2 }
+    hi = hi - STEP
+  end
+end
+ns.BANDS = BANDS
+local slots = {}   -- [i] = { frame, gates[k], guid, hit, lastHit, hits, used }
+local cells = {}   -- [k] = { frame, icon, textN, textU }: the seconds of band k
 local cur          -- the slot of the current target, or nil
 local inCombat = false
 
@@ -142,25 +159,23 @@ local function ApplyLock()
   hud.drag:SetShown(unlocked)
   lockBtn:SetShown(unlocked)
   setBtn:SetShown(unlocked)
-  live:SetShown(not unlocked) -- the sample stands in for the real seconds while unlocked
 end
 
 local function ApplyLook()
   PlaceHud()
-  icon:SetShown(db.icon)
   icon2:SetShown(db.icon and not db.locked)
-  textN:ClearAllPoints()
-  textU:ClearAllPoints()
   sample:ClearAllPoints()
   -- with the icon the seconds stand right of it, without it they are centred
-  if db.icon then
-    textN:SetPoint("LEFT", hud, "LEFT", 34, 0)
-    sample:SetPoint("LEFT", hud, "LEFT", 34, 0)
-  else
-    textN:SetPoint("CENTER", hud, "CENTER", 0, 0)
-    sample:SetPoint("CENTER", hud, "CENTER", 0, 0)
+  local point, x = "CENTER", 0
+  if db.icon then point, x = "LEFT", 34 end
+  sample:SetPoint(point, hud, point, x, 0)
+  for _, c in ipairs(cells) do
+    c.icon:SetShown(db.icon)
+    c.textN:ClearAllPoints()
+    c.textN:SetPoint(point, hud, point, x, 0)
+    c.textU:ClearAllPoints()
+    c.textU:SetAllPoints(c.textN)
   end
-  textU:SetAllPoints(textN)
   sample:SetText(string.format(L.fmtSec, 12))
 end
 
@@ -222,36 +237,48 @@ local function BuildHud()
   setBtn:SetPoint("TOPLEFT", hud, "BOTTOM", 2, -4)
   setBtn:SetScript("OnClick", function() if ns.ToggleOptions then ns.ToggleOptions(true) end end)
 
-  -- one frame per remembered target. Its opacity is set once, at the first hit, by the game:
-  -- visible if the target was (almost) full then. Everything shown for that target sits inside.
+  -- one frame per remembered target, with one inner frame per band. The game sets the
+  -- opacity of the inner frames once, at the first hit: visible for the band the target was
+  -- in, invisible for all others.
   for i = 1, SLOTS do
     local f = CreateFrame("Frame", nil, hud)
     f:SetAllPoints()
-    f:SetAlpha(0)
-    slots[i] = { frame = f, hits = 0, used = 0 }
+    local gates = {}
+    for k = 1, #BANDS do
+      gates[k] = CreateFrame("Frame", nil, f)
+      gates[k]:SetAllPoints(hud)
+      gates[k]:SetAlpha(0)
+    end
+    slots[i] = { frame = f, gates = gates, hits = 0, used = 0 }
   end
-  -- the opacity of this one follows "Show from", set anew by the game on every update
-  live = CreateFrame("Frame", nil, slots[1].frame)
-  live:SetAllPoints(hud)
-  icon = live:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(26, 26)
-  icon:SetPoint("LEFT", hud, "LEFT", 3, 0)
-  icon:SetTexture(Skin.LOGO)
-  textN = live:CreateFontString(nil, "OVERLAY")
-  BigFont(textN)
-  textN:SetTextColor(1, 1, 1)
-  textU = live:CreateFontString(nil, "OVERLAY")
-  BigFont(textU)
-  textU:SetTextColor(1, 0.25, 0.30)
-  textU:SetAlpha(0)
-  live:Hide()
-  ns.hud, ns.live, ns.textN, ns.textU, ns.slots = hud, live, textN, textU, slots
+  -- the seconds of each band; the opacity of a cell follows "Show from", set anew by the
+  -- game on every update. The cells sit in the inner frames of the current target.
+  for k = 1, #BANDS do
+    local c = {}
+    c.frame = CreateFrame("Frame", nil, slots[1].gates[k])
+    c.frame:SetAllPoints(hud)
+    c.icon = c.frame:CreateTexture(nil, "ARTWORK")
+    c.icon:SetSize(26, 26)
+    c.icon:SetPoint("LEFT", hud, "LEFT", 3, 0)
+    c.icon:SetTexture(Skin.LOGO)
+    c.textN = c.frame:CreateFontString(nil, "OVERLAY")
+    BigFont(c.textN)
+    c.textN:SetTextColor(1, 1, 1)
+    c.textU = c.frame:CreateFontString(nil, "OVERLAY")
+    BigFont(c.textU)
+    c.textU:SetTextColor(1, 0.25, 0.30)
+    c.textU:SetAlpha(0)
+    c.frame:Hide()
+    cells[k] = c
+  end
+  ns.hud, ns.cells, ns.slots = hud, cells, slots
 end
 
 ------------------------------------------------------------------------
 -- what the game is asked
 ------------------------------------------------------------------------
-local ttdCurve, limitCurve, urgentCurve, normalCurve, fullCurve
+local ttdCurve, limitCurve, urgentCurve, normalCurve
+local bandCurves = {} -- [k]: yes while the health is inside band k
 local ON, OFF -- the two colours of the yes / no curves, made once
 
 local function NewCurve(colour)
@@ -265,18 +292,23 @@ end
 
 local function InitCurves()
   ttdCurve = NewCurve(false)
-  limitCurve, urgentCurve, normalCurve, fullCurve = NewCurve(true), NewCurve(true), NewCurve(true), NewCurve(true)
-  if not (ttdCurve and limitCurve and urgentCurve and normalCurve and fullCurve and CreateColor) then return false end
+  limitCurve, urgentCurve, normalCurve = NewCurve(true), NewCurve(true), NewCurve(true)
+  if not (ttdCurve and limitCurve and urgentCurve and normalCurve and CreateColor) then return false end
   ON, OFF = CreateColor(1, 1, 1, 1), CreateColor(1, 1, 1, 0)
-  -- "was (almost) full": yes from WAS_FULL up
-  fullCurve:AddPoint(0, OFF)
-  fullCurve:AddPoint(WAS_FULL, ON)
+  for k, b in ipairs(BANDS) do
+    local c = NewCurve(true)
+    if not c then return false end
+    c:AddPoint(0, OFF)
+    c:AddPoint(b.lo, ON)
+    if b.hi <= 1 then c:AddPoint(b.hi, OFF) end
+    bandCurves[k] = c
+  end
   return true
 end
 
 -- the share of health at which the target has `seconds` left, when it has been losing health
--- evenly for T seconds since it was full: the same rule the seconds themselves follow
-local function ShareAt(seconds, T) return seconds / (seconds + T) end
+-- evenly for T seconds since it was at `start`: the same rule the seconds themselves follow
+local function ShareAt(seconds, T, start) return seconds * start / (seconds + T) end
 
 -- yes below the share, no above it (yesBelow) or the other way round
 local function Band(curve, share, yesBelow)
@@ -317,8 +349,12 @@ local function FreeSlot()
     if not best or s.used < best.used then best = s end
   end
   best.guid, best.hit, best.lastHit, best.hits = nil, nil, nil, 0
-  best.frame:SetAlpha(0)
+  for _, g in ipairs(best.gates) do g:SetAlpha(0) end
   return best
+end
+
+local function HideCells()
+  for _, c in ipairs(cells) do c.frame:Hide() end
 end
 
 local function Select(slot)
@@ -326,16 +362,18 @@ local function Select(slot)
   if slot then
     useCount = useCount + 1
     slot.used = useCount
-    live:SetParent(slot.frame)
-    live:SetAllPoints(hud)
+    for k, c in ipairs(cells) do
+      c.frame:SetParent(slot.gates[k])
+      c.frame:SetAllPoints(hud)
+    end
   end
-  live:Hide()
+  HideCells()
 end
 
 local function ForgetAll()
   for _, s in ipairs(slots) do
     s.guid, s.hit, s.lastHit, s.hits, s.used = nil, nil, nil, 0, 0
-    s.frame:SetAlpha(0)
+    for _, g in ipairs(s.gates) do g:SetAlpha(0) end
   end
   useCount = 0
   Select(nil)
@@ -362,10 +400,13 @@ local function TargetHit()
   cur.lastHit = now
   if not cur.hit then
     cur.hit = now
-    -- the game decides once whether this target was (almost) full; no: nothing shows for it
-    if not Opacity(cur.frame, fullCurve) then
-      cur.frame:SetAlpha(0)
-      Broken()
+    -- the game marks, once, the band this target is in now; all other bands stay invisible
+    for k, g in ipairs(cur.gates) do
+      if not Opacity(g, bandCurves[k]) then
+        for _, x in ipairs(cur.gates) do x:SetAlpha(0) end
+        Broken()
+        break
+      end
     end
   end
 end
@@ -380,47 +421,58 @@ local function Ready()
   return Wanted()
 end
 
-local function Show()
-  -- the first hit already took its share of health but no time: count one average gap
-  -- between hits before it
-  local start = cur.hit - (cur.lastHit - cur.hit) / (cur.hits - 1)
-  local T = GetTime() - start
+-- the seconds of one band: text, "Show from", red or white
+local function ShowBand(k, T)
+  local b, c = BANDS[k], cells[k]
   ttdCurve:ClearPoints()
   ttdCurve:AddPoint(0, 0)
   for i = 1, #SECONDS do
     local s = SECONDS[i]
-    ttdCurve:AddPoint(ShareAt(s, T), s)
+    ttdCurve:AddPoint(ShareAt(s, T, b.start), s)
   end
   ttdCurve:AddPoint(1, CAP)
   local ok, seconds = Percent(ttdCurve)
   if not ok then return false end
   local okT, text = pcall(string.format, L.fmtSec, seconds)
   if not okT then return false end
-  textN:SetText(text)
-  textU:SetText(text)
-  -- "Show from": hidden while more than the limit is left (and while next to nothing is lost)
+  c.textN:SetText(text)
+  c.textU:SetText(text)
+  -- "Show from": hidden while more than the limit is left, and until the target has lost
+  -- enough for an estimate (a full target: next to nothing; a hurt one: LOST below its band)
   local limit = db.limit > 0 and db.limit or CAP
-  Band(limitCurve, math.min(ShareAt(limit, T), 0.995), true)
-  if not Opacity(live, limitCurve) then return false end
+  local top = k == 1 and 0.995 or (b.lo - LOST)
+  Band(limitCurve, math.min(ShareAt(limit, T, b.start), top), true)
+  if not Opacity(c.frame, limitCurve) then return false end
   -- "Last seconds in red": the red text below the mark, the white one above it
   if db.urgent > 0 then
-    local share = ShareAt(db.urgent, T)
+    local share = ShareAt(db.urgent, T, b.start)
     Band(urgentCurve, share, true)
     Band(normalCurve, share, false)
-    if not (Opacity(textU, urgentCurve) and Opacity(textN, normalCurve)) then return false end
+    if not (Opacity(c.textU, urgentCurve) and Opacity(c.textN, normalCurve)) then return false end
   else
-    textU:SetAlpha(0)
-    textN:SetAlpha(1)
+    c.textU:SetAlpha(0)
+    c.textN:SetAlpha(1)
+  end
+  return true
+end
+
+local function Show()
+  -- the first hit already took its share of health but no time: count one average gap
+  -- between hits before it
+  local start = cur.hit - (cur.lastHit - cur.hit) / (cur.hits - 1)
+  local T = GetTime() - start
+  for k = 1, #BANDS do
+    if not ShowBand(k, T) then return false end
   end
   return true
 end
 
 local function Update()
-  if not db.locked or not Ready() then live:Hide() return end
+  if not db.locked or not Ready() then HideCells() return end
   if Show() then
-    live:Show()
+    for _, c in ipairs(cells) do c.frame:Show() end
   else
-    live:Hide()
+    HideCells()
     Broken()
   end
 end
@@ -439,7 +491,7 @@ ev:SetScript("OnUpdate", function(_, elapsed)
   if not ready then return end
   -- an error in here hides the seconds: no number is better than a wrong one
   if not pcall(Update) then
-    live:Hide()
+    HideCells()
     Broken()
   end
 end)

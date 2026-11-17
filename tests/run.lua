@@ -14,11 +14,25 @@ local function fresh(opts)
   M.fire("PLAYER_ENTERING_WORLD")
   return ns
 end
+-- the cell on screen (white or red text visible); two at once would be a bug
+local function cell(ns)
+  local found
+  for _, c in ipairs(ns.cells) do
+    if M.visible(c.textN) or M.visible(c.textU) then
+      assert(not found, "two estimates on screen at once")
+      found = c
+    end
+  end
+  return found
+end
 local function seconds(ns)
-  local t = M.reveal(ns.textN:GetText())
+  local c = cell(ns)
+  local t = c and M.reveal(c.textN:GetText())
   return t and tonumber(t:match("~(%d+)"))
 end
-local function shown(ns) return M.visible(ns.textN) or M.visible(ns.textU) end
+local function shown(ns) return cell(ns) ~= nil end
+local function white(ns) local c = cell(ns) return c and M.visible(c.textN) and not M.visible(c.textU) end
+local function red(ns) local c = cell(ns) return c and M.visible(c.textU) and not M.visible(c.textN) end
 local function near(a, b, tol, msg)
   if not a or math.abs(a - b) > tol then error(string.format("%s: expected %s, got %s", msg or "", b, tostring(a)), 2) end
 end
@@ -79,11 +93,36 @@ test("the seconds are right for steady damage (5 % per second)", function()
   assert(shown(ns))
 end)
 
-test("a target that was not full at the first hit shows nothing", function()
+test("a boss joined at 50 %: seconds show once it has lost enough, and they are about right", function()
   local ns = fresh()
-  M.hp = 0.5
-  fight(6, 0.05)
-  assert(not shown(ns), "half-dead target taken over: no number")
+  M.hp = 0.52
+  fight(3, 0.02)                                  -- 46 %: its band is 50-55 %, too little lost yet
+  assert(not shown(ns), "only a few percent lost since joining: nothing yet")
+  for _ = 1, 8 do M.hp = M.hp - 0.02 M.hit() M.tick(1, 0) end   -- 30 %, 2 % per second
+  M.now = M.now - 1 M.tick(0.2, 0)
+  assert(shown(ns), "22 % lost since joining: show")
+  near(seconds(ns), 15, 3, "30 % left at 2 % per second")
+end)
+
+test("joined at every share from 100 % to 20 %: one estimate, within a quarter at half way", function()
+  for start = 100, 21, -1 do
+    local ns = fresh()
+    M.hp = start / 100
+    local rate = M.hp / 40                        -- dies 40 s after joining
+    M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+    for _ = 1, 20 do M.hp = M.hp - rate M.hit() M.tick(1, 0) end
+    M.now = M.now - 1 M.tick(0.2, 0)
+    local sec = seconds(ns)
+    assert(sec, "joined at " .. start .. " %: nothing on screen at half way")
+    assert(math.abs(sec - 20) <= 5, "joined at " .. start .. " %: " .. sec .. " s shown, 20 s left")
+  end
+end)
+
+test("a target first hit below 20 % shows nothing", function()
+  local ns = fresh()
+  M.hp = 0.18
+  fight(6, 0.02)
+  assert(not shown(ns))
 end)
 
 test("a boss the group hit first (98 %) still shows", function()
@@ -115,8 +154,8 @@ test("dungeon: targets cannot be told apart, so a target met again starts anew",
   M.hp = 1 M.fire("PLAYER_TARGET_CHANGED") M.tick(1, 0)
   M.hp = hp1 M.fire("PLAYER_TARGET_CHANGED") M.tick(1, 0)
   assert(not shown(ns))
-  for _ = 1, 3 do M.hit() M.tick(1, 0.01) end
-  assert(not shown(ns), "it was at 70 % at its new first hit: nothing")
+  for _ = 1, 3 do M.hit() M.tick(1, 0.005) end
+  assert(not shown(ns), "it starts anew at 70 %: nothing until it has lost enough again")
 end)
 
 test("after the fight everything is forgotten", function()
@@ -149,12 +188,21 @@ end)
 test("'Last seconds in red': white above the mark, red below", function()
   local ns = fresh({ db = { urgent = 5, limit = 0 } })
   fight(8, 0.05)                                  -- about 12 s left
-  assert(M.visible(ns.textN) and not M.visible(ns.textU), "white at 12 s")
+  assert(white(ns), "white at 12 s")
   M.tick(9, 0.05)                                 -- about 3 s left
-  assert(M.visible(ns.textU) and not M.visible(ns.textN), "red at 3 s")
+  assert(red(ns), "red at 3 s")
   ns.db.urgent = 0
   M.tick(0.2, 0)
-  assert(M.visible(ns.textN) and not M.visible(ns.textU), "switched off: white")
+  assert(white(ns), "switched off: white")
+end)
+
+test("'Last seconds in red' goes up to 60 s (cooldowns kept for the end)", function()
+  local ns = fresh({ db = { urgent = 60, limit = 0 } })
+  assert(ns.db.urgent == 60, "60 is a valid choice")
+  fight(10, 0.005)                                -- 95 %: about 190 s left
+  assert(white(ns), "white at 190 s")
+  M.tick(30, 0.02)                                -- 35 % after 40 s: about 20 s left
+  assert(red(ns), "red below 60 s")
 end)
 
 test("'Only elites and bosses'", function()
@@ -214,7 +262,9 @@ test("unlocked: a sample shows, a fight locks the frame again", function()
   local ns = fresh()
   SlashCmdList.LASTBREATHFOREVER("unlock")
   assert(ns.db.locked == false)
-  assert(not M.visible(ns.live), "the real seconds are hidden while unlocked")
+  M.hp = 0.5 M.hit() M.hit() M.hit() M.tick(3, 0)
+  assert(not shown(ns), "the real seconds are hidden while unlocked")
+  M.hp = 1
   M.combat = true M.fire("PLAYER_REGEN_DISABLED")
   assert(ns.db.locked == true, "auto-lock at the pull")
   SlashCmdList.LASTBREATHFOREVER("unlock")
@@ -268,6 +318,8 @@ test("settings: steppers walk their lists and stop at the ends", function()
   assert(ns.db.scale == 0.5)
   for _ = 1, 9 do c[8].scripts.OnClick(c[8]) end
   assert(ns.db.urgent == 0)
+  for _ = 1, 9 do c[9].scripts.OnClick(c[9]) end
+  assert(ns.db.urgent == 60)
 end)
 
 test("the addon menu at the minimap opens the settings and has a tooltip", function()

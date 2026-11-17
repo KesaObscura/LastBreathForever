@@ -12,11 +12,13 @@ targets or save the cooldown. Part of the Forever series with
 - **About how many seconds your target has left** ("~12 s"), live in combat: solo, in a group, in
   dungeons and on bosses. It is an estimate from how fast the target has been losing health in
   this fight, so it is always "about", never exact.
-- The seconds appear after a few hits, and only for targets that were (almost) full when the fight
-  with them began: no number is better than a wrong one.
+- The seconds appear after a few hits. Joined a fight late, or switched to a target that is
+  already hurt? They show for it too, a little later: once it has lost some more health.
+  No number is better than a wrong one.
 - In the open world a target you come back to in the same fight keeps its seconds.
 - **Show from**: only once about 30 s to 10 min or less are left, or always.
-- **Last seconds in red**, **only elites and bosses**, size, icon, position.
+- **Last seconds in red**: from 3 s up to a minute before the end, for cooldowns and trinkets you
+  keep for the finish. **Only elites and bosses**, size, icon, position.
 - 9 languages: English, Deutsch, Español (EU and AL), Français, Русский, 한국어, Português,
   简体中文, 繁體中文. The addon follows your game language.
 

@@ -162,7 +162,7 @@ end
 local function Build()
   local db = ns.db
   win = CreateFrame("Frame", nil, UIParent)
-  win:SetSize(W, 412)
+  win:SetSize(W, 392)
   win:SetPoint("CENTER")
   win:SetFrameStrata("DIALOG")
   win:EnableMouse(true)
