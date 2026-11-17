@@ -56,6 +56,8 @@ T.enUS = {
   optLang = "Language",
   tipLang = "Language of the addon's texts. \"Game language\" uses the language of your game.",
   langAuto = "Game language",
+  fmtMss = "~%d:%d0",
+  fmtMin = "~%d min",
 }
 
 T.deDE = {
@@ -108,6 +110,8 @@ T.deDE = {
   optLang = "Sprache",
   tipLang = "Sprache der Addon-Texte. „Spielsprache“ nimmt die Sprache deines Spiels.",
   langAuto = "Spielsprache",
+  fmtMss = "~%d:%d0",
+  fmtMin = "~%d Min.",
 }
 
 T.ruRU = {
@@ -160,6 +164,8 @@ T.ruRU = {
   optLang = "Язык",
   tipLang = "Язык текстов аддона. «Язык игры» берёт язык твоей игры.",
   langAuto = "Язык игры",
+  fmtMss = "~%d:%d0",
+  fmtMin = "~%d мин",
 }
 
 T.esES = {
@@ -212,6 +218,8 @@ T.esES = {
   optLang = "Idioma",
   tipLang = "Idioma de los textos del addon. «Idioma del juego» usa el idioma de tu juego.",
   langAuto = "Idioma del juego",
+  fmtMss = "~%d:%d0",
+  fmtMin = "~%d min",
 }
 
 T.frFR = {
@@ -264,6 +272,8 @@ T.frFR = {
   optLang = "Langue",
   tipLang = "Langue des textes de l'addon. « Langue du jeu » utilise la langue de ton jeu.",
   langAuto = "Langue du jeu",
+  fmtMss = "~%d:%d0",
+  fmtMin = "~%d min",
 }
 
 T.ptBR = {
@@ -316,6 +326,8 @@ T.ptBR = {
   optLang = "Idioma",
   tipLang = "Idioma dos textos do addon. \"Idioma do jogo\" usa o idioma do seu jogo.",
   langAuto = "Idioma do jogo",
+  fmtMss = "~%d:%d0",
+  fmtMin = "~%d min",
 }
 
 T.koKR = {
@@ -368,6 +380,8 @@ T.koKR = {
   optLang = "언어",
   tipLang = "애드온 텍스트의 언어. \"게임 언어\"는 게임의 언어를 사용합니다.",
   langAuto = "게임 언어",
+  fmtMss = "~%d:%d0",
+  fmtMin = "~%d분",
 }
 
 T.zhCN = {
@@ -420,6 +434,8 @@ T.zhCN = {
   optLang = "语言",
   tipLang = "插件文字的语言。“游戏语言”使用你游戏的语言。",
   langAuto = "游戏语言",
+  fmtMss = "~%d:%d0",
+  fmtMin = "~%d 分钟",
 }
 
 T.zhTW = {
@@ -472,6 +488,8 @@ T.zhTW = {
   optLang = "語言",
   tipLang = "插件文字的語言。「遊戲語言」使用你遊戲的語言。",
   langAuto = "遊戲語言",
+  fmtMss = "~%d:%d0",
+  fmtMin = "~%d 分鐘",
 }
 
 T.esMX = T.esES

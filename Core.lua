@@ -22,6 +22,8 @@ local CAP = 3600           -- the longest estimate (seconds)
 local SLOTS = 8            -- targets remembered during one fight
 ns.LIMITS = { 0, 30, 60, 120, 300, 600 } -- "Show from": 0 = always
 ns.URGENTS = { 0, 5, 10, 15, 20, 30, 45, 60 } -- "Last seconds in red": 0 = off
+-- longer times read as minutes: "~2:30" (to 10 s) from LONG s up, "~12 min" from MINUTES s up
+local LONG, MINUTES = 90, 600
 local SECONDS = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 50, 60,
   75, 90, 120, 150, 180, 240, 300, 450, 600, 900, 1200, 1800, 2700, 3600 }
 
@@ -148,6 +150,7 @@ ns.BANDS = BANDS
 -- what the game is asked
 ------------------------------------------------------------------------
 local ttdCurve, limitCurve, urgentCurve, normalCurve, waitCurve
+local formCurve, minCurve, tenCurve -- which of the three texts, and the minutes and tens of "~2:30"
 local bandCurves = {} -- [k]: yes while the health is inside band k
 local ON, OFF -- the two colours of the yes / no curves, made once
 
@@ -163,7 +166,12 @@ end
 local function InitCurves()
   ttdCurve = NewCurve(false)
   limitCurve, urgentCurve, normalCurve, waitCurve = NewCurve(true), NewCurve(true), NewCurve(true), NewCurve(true)
-  if not (ttdCurve and limitCurve and urgentCurve and normalCurve and waitCurve and CreateColor) then return false end
+  formCurve = NewCurve(true)
+  minCurve, tenCurve = NewCurve(false), NewCurve(false)
+  if minCurve then pcall(minCurve.SetType, minCurve, Enum.LuaCurveType.Step) end
+  if tenCurve then pcall(tenCurve.SetType, tenCurve, Enum.LuaCurveType.Step) end
+  if not (ttdCurve and limitCurve and urgentCurve and normalCurve and waitCurve and formCurve
+      and minCurve and tenCurve and CreateColor) then return false end
   ON, OFF = CreateColor(1, 1, 1, 1), CreateColor(1, 1, 1, 0)
   for k, b in ipairs(BANDS) do
     local c = NewCurve(true)
@@ -406,6 +414,7 @@ end
 local function Attach(v, track)
   if v.track == track then return end
   v.track = track
+  v.longAt = nil -- the minutes texts of the new unit are written at once
   if track then
     for k, c in ipairs(v.cells) do
       c.frame:SetParent(track.gates[k])
@@ -484,10 +493,24 @@ local function BuildView(unit, pointKey, defaultY, label)
     c.icon:SetSize(26, 26)
     c.icon:SetPoint("LEFT", hud, "LEFT", 3, 0)
     c.icon:SetTexture(Skin.LOGO)
-    c.textN = c.num:CreateFontString(nil, "OVERLAY")
+    -- three ways to write the time, each in its own frame that the game shows or hides:
+    -- seconds (white, or red at the end), "~2:30", "~12 min"
+    c.sec = CreateFrame("Frame", nil, c.num)
+    c.sec:SetAllPoints(hud)
+    c.mss = CreateFrame("Frame", nil, c.num)
+    c.mss:SetAllPoints(hud)
+    c.mins = CreateFrame("Frame", nil, c.num)
+    c.mins:SetAllPoints(hud)
+    c.textL = c.mss:CreateFontString(nil, "OVERLAY")
+    BigFont(c.textL)
+    c.textL:SetTextColor(1, 1, 1)
+    c.textM = c.mins:CreateFontString(nil, "OVERLAY")
+    BigFont(c.textM)
+    c.textM:SetTextColor(1, 1, 1)
+    c.textN = c.sec:CreateFontString(nil, "OVERLAY")
     BigFont(c.textN)
     c.textN:SetTextColor(1, 1, 1)
-    c.textU = c.num:CreateFontString(nil, "OVERLAY")
+    c.textU = c.sec:CreateFontString(nil, "OVERLAY")
     BigFont(c.textU)
     c.textU:SetTextColor(1, 0.25, 0.30)
     c.textU:SetAlpha(0)
@@ -537,6 +560,10 @@ function ns.Apply()
       c.textN:SetPoint(point, v.hud, point, x, 0)
       c.textU:ClearAllPoints()
       c.textU:SetAllPoints(c.textN)
+      for _, fs in ipairs({ c.textL, c.textM }) do
+        fs:ClearAllPoints()
+        fs:SetPoint(point, v.hud, point, x, 0)
+      end
     end
     if not on or unlocked then HideCells(v) end
   end
@@ -593,7 +620,7 @@ end
 -- update
 ------------------------------------------------------------------------
 -- the seconds of one band of a view: text, "Show from", red or white
-local function ShowBand(v, t, k, T, cfg)
+local function ShowBand(v, t, k, T, cfg, long)
   local b, c, unit = BANDS[k], v.cells[k], t.unit
   ttdCurve:ClearPoints()
   ttdCurve:AddPoint(0, 0)
@@ -622,6 +649,59 @@ local function ShowBand(v, t, k, T, cfg)
   if not Opacity(c.num, unit, limitCurve) then return false end
   Band(waitCurve, top, false)
   if not Opacity(c.wait, unit, waitCurve) then return false end
+  -- which text: seconds below LONG, "~2:30" up to MINUTES, "~12 min" above
+  if limit > LONG then
+    local hLong, hMin = ShareAt(LONG, T, b.start), ShareAt(MINUTES, T, b.start)
+    Band(formCurve, hLong, true)
+    if not Opacity(c.sec, unit, formCurve) then return false end
+    formCurve:ClearPoints()
+    formCurve:AddPoint(0, OFF)
+    formCurve:AddPoint(hLong, ON)
+    formCurve:AddPoint(math.min(hMin, 1), OFF)
+    if not Opacity(c.mss, unit, formCurve) then return false end
+    if limit > MINUTES then
+      Band(formCurve, hMin, false)
+      if not Opacity(c.mins, unit, formCurve) then return false end
+    else
+      c.mins:SetAlpha(0)
+    end
+    -- the minutes texts change at most every 10 s: written once a second
+    if long then
+      -- "~2:30": rounded to 10 s. D = 100, 110, ... starts at D - 5 s
+      minCurve:ClearPoints()
+      tenCurve:ClearPoints()
+      minCurve:AddPoint(0, 1)
+      tenCurve:AddPoint(0, 3)
+      for D = 100, MINUTES - 10, 10 do
+        local h = ShareAt(D - 5, T, b.start)
+        minCurve:AddPoint(h, math.floor(D / 60))
+        tenCurve:AddPoint(h, (D % 60) / 10)
+      end
+      local okM, m = Percent(unit, minCurve)
+      local okD, d = Percent(unit, tenCurve)
+      if not (okM and okD) then return false end
+      local okL, txt = pcall(string.format, L.fmtMss, m, d)
+      if not okL then return false end
+      c.textL:SetText(txt)
+      if limit > MINUTES then
+        -- "~12 min": rounded to the minute
+        minCurve:ClearPoints()
+        minCurve:AddPoint(0, MINUTES / 60)
+        for M = MINUTES / 60 + 1, CAP / 60 do
+          minCurve:AddPoint(ShareAt(M * 60 - 30, T, b.start), M)
+        end
+        local okN, n = Percent(unit, minCurve)
+        if not okN then return false end
+        local okT2, txt2 = pcall(string.format, L.fmtMin, n)
+        if not okT2 then return false end
+        c.textM:SetText(txt2)
+      end
+    end
+  else
+    c.sec:SetAlpha(1)
+    c.mss:SetAlpha(0)
+    c.mins:SetAlpha(0)
+  end
   -- "Last seconds in red": the red text below the mark, the white one above it
   if cfg.urgent > 0 then
     local share = ShareAt(cfg.urgent, T, b.start)
@@ -641,8 +721,11 @@ local function ShowView(v, t, cfg)
   local start = t.hit - (t.lastHit - t.hit) / (t.hits - 1)
   local T = GetTime() - start
   t.asked = t.asked + 1
+  local now = GetTime()
+  local long = now - (v.longAt or 0) >= 1
+  if long then v.longAt = now end
   for _, k in ipairs(t.bands) do
-    if not ShowBand(v, t, k, T, cfg) then
+    if not ShowBand(v, t, k, T, cfg, long) then
       t.failed = t.failed + 1
       return false
     end

@@ -14,24 +14,35 @@ local function fresh(opts)
   M.fire("PLAYER_ENTERING_WORLD")
   return ns
 end
--- the cell on screen (white or red text visible); two at once would be a bug
+-- the cell on screen (any of its texts visible); two at once would be a bug
+local function anyText(c)
+  for _, fs in ipairs({ c.textN, c.textU, c.textL, c.textM }) do
+    if M.visible(fs) then return fs end
+  end
+end
 local function cell(ns)
   local found
   for _, c in ipairs(ns.cells) do
-    if M.visible(c.textN) or M.visible(c.textU) then
+    if anyText(c) then
       assert(not found, "two estimates on screen at once")
       found = c
     end
   end
   return found
 end
+-- the seconds on screen, whatever the form ("~12 s", "~2:30", "~12 min")
 local function seconds(ns)
   local c = cell(ns)
-  local t = c and M.reveal(c.textN:GetText())
-  return t and tonumber(t:match("~(%d+)"))
+  local t = c and M.reveal(anyText(c):GetText())
+  if not t then return nil end
+  local m, d = t:match("^~(%d+):(%d)0$")
+  if m then return tonumber(m) * 60 + tonumber(d) * 10 end
+  local n = t:match("^~(%d+) min$")
+  if n then return tonumber(n) * 60 end
+  return tonumber(t:match("~(%d+)"))
 end
 local function shown(ns) return cell(ns) ~= nil end
-local function white(ns) local c = cell(ns) return c and M.visible(c.textN) and not M.visible(c.textU) end
+local function white(ns) local c = cell(ns) return c and not M.visible(c.textU) end
 local function red(ns) local c = cell(ns) return c and M.visible(c.textU) and not M.visible(c.textN) end
 local function near(a, b, tol, msg)
   if not a or math.abs(a - b) > tol then error(string.format("%s: expected %s, got %s", msg or "", b, tostring(a)), 2) end
@@ -345,8 +356,12 @@ end)
 -- the cell of the focus frame that is on screen
 local function focusSeconds(ns)
   for _, c in ipairs(ns.views[2].cells) do
-    if M.visible(c.textN) or M.visible(c.textU) then
-      return tonumber(M.reveal(c.textN:GetText()):match("~(%d+)"))
+    local fs = anyText(c)
+    if fs then
+      local t = M.reveal(fs:GetText())
+      local m, d = t:match("^~(%d+):(%d)0$")
+      if m then return tonumber(m) * 60 + tonumber(d) * 10 end
+      return tonumber(t:match("~(%d+)"))
     end
   end
 end
@@ -631,6 +646,48 @@ test("a target taken out of combat counts as full; the game not saying: narrow b
   fight(10, 0.01)
   M.now = M.now - 1 M.tick(0.2, 0)
   near(seconds(ns2), 99, 15, "the game did not say: from the 97.5-100 % band, about 12 % high")
+end)
+
+-- the text on screen, whichever of the three forms it is in
+local function text(ns)
+  for _, c in ipairs(ns.cells) do
+    for _, fs in ipairs({ c.textN, c.textU, c.textL, c.textM }) do
+      if M.visible(fs) then return M.reveal(fs:GetText()) end
+    end
+  end
+end
+
+test("long times read as minutes: ~2:30 above 90 s, ~12 min above 10 min", function()
+  local ns = fresh({ db = { limit = 0 } })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  -- 0.25 % per second: from 90 % after 40 s, 360 s are left
+  for _ = 1, 40 do M.hp = M.hp - 0.0025 M.hit() M.tick(1, 0) end
+  M.tick(1.2, 0)
+  local t = text(ns)
+  assert(t and t:match("^~%d:%d0$"), "m:ss expected, got " .. tostring(t))
+  local m, d = t:match("^~(%d):(%d)0$")
+  near(tonumber(m) * 60 + tonumber(d) * 10, 360, 45, "about 6 minutes")
+  -- slower: 6 % in 60 s, about 15-16 minutes left
+  local ns2 = fresh({ db = { limit = 0 } })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 60 do M.hp = M.hp - 0.001 M.hit() M.tick(1, 0) end
+  M.tick(1.2, 0)
+  local t2 = text(ns2)
+  assert(t2 and t2:match("^~%d+ min$"), "minutes expected, got " .. tostring(t2))
+  near(tonumber(t2:match("%d+")), 16, 2, "about 16 minutes")
+  -- and below 90 s plain seconds again
+  local ns3 = fresh({ db = { limit = 0 } })
+  fight(8, 0.05)
+  M.now = M.now - 1 M.tick(0.2, 0)
+  assert(text(ns3):match("^~%d+ s$"), text(ns3))
+end)
+
+test("'Show from' 1 min: never minutes", function()
+  local ns = fresh({ db = { limit = 60 } })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 40 do M.hp = M.hp - 0.0025 M.hit() M.tick(1, 0) end
+  M.tick(1.2, 0)
+  assert(text(ns) == nil, "6 min left, shown from 1 min: nothing")
 end)
 
 for _, t in ipairs(tests) do

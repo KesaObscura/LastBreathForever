@@ -2,7 +2,7 @@
 
 First test version.
 
-- Shows about how many seconds your current target has left ("~12 s"), live in combat: solo, in a group, in dungeons and on bosses.
+- Shows about how many seconds your current target has left ("~12 s"; longer times as "~2:30" or "~12 min"), live in combat: solo, in a group, in dungeons and on bosses.
 - The seconds appear after a few hits. For a target that was already hurt when you joined (a boss at 50 %, the next mob of a pull), they show a little later: once it has lost some more health.
 - In the open world a target you come back to in the same fight keeps its seconds.
 - A second frame with the seconds of your focus (off by default), with the target frame's settings or its own. Healers: put the boss in your focus, and its seconds stay on screen while an ally is your target.
