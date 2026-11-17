@@ -95,6 +95,14 @@ function UnitGUID(u)
   if M.secretGuid then return M.secret(m.guid) end
   return m.guid
 end
+M.noCombatInfo = false -- the game does not say whether a unit is fighting
+function UnitAffectingCombat(u)
+  local m = mob(u)
+  if M.noCombatInfo then return M.secret(true) end
+  return m ~= nil and m.fighting == true
+end
+M.group = 0
+function GetNumGroupMembers() return M.group end
 function UnitClassification(u) local m = mob(u) return m and m.class or "normal" end
 function UnitLevel(u) local m = mob(u) return m and m.level or 1 end
 function UnitIsUnit(a, b)

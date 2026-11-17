@@ -20,10 +20,11 @@ targets or save the cooldown. Part of the Forever series with
   target frame's settings or its own. **Healers**: put the boss in your focus, and its seconds
   stay on screen while an ally is your target.
 - The language of the addon follows your game, or choose one in the settings.
-- The seconds wait until the target has lost a few percent: the very first seconds of a fight
-  say too little.
+- The seconds wait until the target has lost a few percent, in a group or on a boss also
+  about 10 s (the first seconds of a pull say too little). Meanwhile a dim icon shows that the
+  addon is counting.
 - **Show from**: only once about 30 s to 10 min or less are left, or always.
-- **Last seconds in red**: from 3 s up to a minute before the end, for cooldowns and trinkets you
+- **Last seconds in red**: from 5 s up to a minute before the end (10 s by default), for cooldowns and trinkets you
   keep for the finish. **Only elites and bosses**, size, icon, position.
 - 9 languages: English, Deutsch, Español (EU and AL), Français, Русский, 한국어, Português,
   简体中文, 繁體中文. The addon follows your game language.

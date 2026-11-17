@@ -10,15 +10,18 @@ local Skin = ns.Skin
 local TICK = 0.2
 local MIN_HITS = 3         -- hits on the target before an estimate shows
 local MIN_TIME = 2         -- seconds since the first hit before an estimate shows
-local FULL = 0.90          -- from this share up at the first hit the target counts as full
-local STEP = 0.05          -- below that: bands of this width, each with its own estimate
+local FULL = 0.90          -- a target taken out of combat counts as full from here up
+local STEP = 0.025         -- other targets: bands of this width, each with its own estimate
 local LOWEST = 0.20        -- a target first hit below this share gets no estimate
-local LOST = 0.05          -- a band's estimate shows once the target is this far below the band
+-- how much must be lost since the start before a number shows. Solo: 5 % (a target that
+-- was already hurt: 7.5 % below its band's middle). In a group or on a boss the damage
+-- needs time to build up: after 10 s and 3 % (hurt: 7.5 %), or earlier once 20 % is lost
+local LOST_SOLO, LOST_HURT = 0.05, 0.075
+local GROUP_TIME, LOST_GROUP, LOST_EARLY = 10, 0.03, 0.20
 local CAP = 3600           -- the longest estimate (seconds)
 local SLOTS = 8            -- targets remembered during one fight
-local BOSSES = 4           -- bosses of an encounter followed in the background
 ns.LIMITS = { 0, 30, 60, 120, 300, 600 } -- "Show from": 0 = always
-ns.URGENTS = { 0, 3, 5, 10, 15, 20, 30, 45, 60 } -- "Last seconds in red": 0 = off
+ns.URGENTS = { 0, 5, 10, 15, 20, 30, 45, 60 } -- "Last seconds in red": 0 = off
 local SECONDS = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 50, 60,
   75, 90, 120, 150, 180, 240, 300, 450, 600, 900, 1200, 1800, 2700, 3600 }
 
@@ -27,7 +30,7 @@ local DEFAULTS = {
   scale = 1,       -- size of the seconds and the icon
   icon = true,
   limit = 300,     -- seconds: show from here down (0 = always)
-  urgent = 5,      -- seconds: red from here down (0 = off)
+  urgent = 10,     -- seconds: red from here down (0 = off)
   elite = false,   -- only elite, rare and boss targets
   focus = false,   -- a second frame for the focus
   focusSame = true, -- the focus frame uses the target frame's settings
@@ -118,24 +121,33 @@ end
 ------------------------------------------------------------------------
 -- bands
 ------------------------------------------------------------------------
--- A unit may already be hurt when its first hit is seen. The addon cannot read how much, so
--- the health scale is cut into bands: BANDS[k] = { lo, hi, start } (start = the share the
--- estimate of that band counts from). Every band has its own seconds on screen; the game shows
--- the one whose band the unit was in at its first hit, and nothing else.
-local BANDS = { { lo = FULL, hi = 1.01, start = 1 } }
+-- The addon cannot read how much health a unit had when it was first hit, so the health scale
+-- is cut into bands: BANDS[k] = { lo, hi, start } (start = the share the estimate of that band
+-- counts from). The game marks, once, the band the unit is in at its first hit; every band
+-- has its own seconds on screen, and only the marked band's are seen.
+-- Band 1 is "full" (90-100 %, counted from 100 %): only for a unit taken out of combat, whose
+-- first hit may already take a big bite. A unit already fighting uses 2.5 % bands from 100 %
+-- down (a mob at 91 % after an AoE is not taken for full).
+local BANDS = { { lo = FULL, hi = 1.01, start = 1, full = true } }
 do
-  local hi = FULL
+  local hi = 1
   while hi - STEP >= LOWEST - 0.001 do
-    BANDS[#BANDS + 1] = { lo = hi - STEP, hi = hi, start = hi - STEP / 2 }
+    BANDS[#BANDS + 1] = { lo = hi - STEP, hi = hi >= 1 and 1.01 or hi, start = hi - STEP / 2 }
     hi = hi - STEP
   end
+end
+-- the bands a unit can be in: taken out of combat, or already fighting
+local FRESH, FIGHTING = { 1 }, {}
+for k = 2, #BANDS do
+  FIGHTING[#FIGHTING + 1] = k
+  if BANDS[k].hi <= FULL + 0.001 then FRESH[#FRESH + 1] = k end
 end
 ns.BANDS = BANDS
 
 ------------------------------------------------------------------------
 -- what the game is asked
 ------------------------------------------------------------------------
-local ttdCurve, limitCurve, urgentCurve, normalCurve
+local ttdCurve, limitCurve, urgentCurve, normalCurve, waitCurve
 local bandCurves = {} -- [k]: yes while the health is inside band k
 local ON, OFF -- the two colours of the yes / no curves, made once
 
@@ -150,8 +162,8 @@ end
 
 local function InitCurves()
   ttdCurve = NewCurve(false)
-  limitCurve, urgentCurve, normalCurve = NewCurve(true), NewCurve(true), NewCurve(true)
-  if not (ttdCurve and limitCurve and urgentCurve and normalCurve and CreateColor) then return false end
+  limitCurve, urgentCurve, normalCurve, waitCurve = NewCurve(true), NewCurve(true), NewCurve(true), NewCurve(true)
+  if not (ttdCurve and limitCurve and urgentCurve and normalCurve and waitCurve and CreateColor) then return false end
   ON, OFF = CreateColor(1, 1, 1, 1), CreateColor(1, 1, 1, 0)
   for k, b in ipairs(BANDS) do
     local c = NewCurve(true)
@@ -194,12 +206,12 @@ end
 local root            -- parent of all tracks' frames; it carries the size
 local targetSlots = {} -- tracks of "target": several, so a target met again keeps its count
 local focusTrack
-local bossTracks = {}  -- "boss1" ...: followed while an encounter runs, whoever is the target
 local cur             -- the track of the current target among targetSlots, or nil
 local inCombat = false
+local encounter       -- the id of the running boss encounter, or nil
 
 local function NewTrack(unit)
-  local t = { unit = unit, gates = {}, hits = 0, used = 0, maxHits = 0, asked = 0, failed = 0 }
+  local t = { unit = unit, gates = {}, hits = 0, used = 0, maxHits = 0, asked = 0, failed = 0, bands = FIGHTING }
   for k = 1, #BANDS do
     local g = CreateFrame("Frame", nil, root)
     g:SetAlpha(0)
@@ -208,9 +220,22 @@ local function NewTrack(unit)
   return t
 end
 
+-- was the unit out of combat when its count began? yes / no / nil (the game did not say)
+local fights = { yes = 0, no = 0, unknown = 0 } -- counted for /lbf check
+local function Fighting(unit)
+  local r = Bool(UnitAffectingCombat, unit)
+  if r == true then fights.yes = fights.yes + 1 elseif r == false then fights.no = fights.no + 1
+  else fights.unknown = fights.unknown + 1 end
+  return r
+end
+
+-- a new count for the unit now in this track
 local function Clear(t)
   t.guid, t.hit, t.lastHit, t.hits = nil, nil, nil, 0
   for _, g in ipairs(t.gates) do g:SetAlpha(0) end
+  -- only a unit known to be out of combat may count as full (when the game does not say:
+  -- the narrow bands, which cost at most 1.25 % on a full one)
+  t.bands = (Bool(UnitExists, t.unit) == true and Fighting(t.unit) == false) and FRESH or FIGHTING
 end
 
 local function Hit(t)
@@ -222,8 +247,8 @@ local function Hit(t)
   if not t.hit then
     t.hit = now
     -- the game marks, once, the band this unit is in now; all other bands stay invisible
-    for k, g in ipairs(t.gates) do
-      if not Opacity(g, t.unit, bandCurves[k]) then
+    for _, k in ipairs(t.bands) do
+      if not Opacity(t.gates[k], t.unit, bandCurves[k]) then
         for _, x in ipairs(t.gates) do x:SetAlpha(0) end
         t.failed = t.failed + 1
         break
@@ -244,11 +269,22 @@ local function Wanted(unit, cfg)
   return Plain(UnitLevel, unit) == -1
 end
 
-local function Ready(t, cfg)
-  if not t or not t.hit or t.hits < MIN_HITS then return false end
-  if GetTime() - t.hit < MIN_TIME then return false end
+-- counting: the unit has been hit and is alive and wanted. Ready: enough hits and time
+local function Counting(t, cfg)
+  if not t or not t.hit then return false end
   if Bool(UnitExists, t.unit) ~= true or Bool(UnitIsDeadOrGhost, t.unit) ~= false then return false end
   return Wanted(t.unit, cfg)
+end
+local function Ready(t)
+  return t.hits >= MIN_HITS and GetTime() - t.hit >= MIN_TIME
+end
+
+-- a group or a boss: damage builds up over the first seconds (the tank alone, then everyone)
+local function Grouped(unit)
+  if encounter then return true end
+  local n = Plain(GetNumGroupMembers)
+  if type(n) == "number" and n > 0 then return true end
+  return Plain(UnitLevel, unit) == -1 or Plain(UnitClassification, unit) == "worldboss"
 end
 
 -- the target's own track: found again by its id where the game tells units apart
@@ -264,6 +300,7 @@ local function TargetChanged()
     if not best or t.used < best.used then best = t end
   end
   if not cur then
+    best.unit = "target"
     Clear(best)
     best.guid = guid
     cur = best
@@ -278,7 +315,6 @@ end
 
 local function ForgetAll()
   for _, t in ipairs(targetSlots) do Clear(t) t.used = 0 end
-  for _, t in ipairs(bossTracks) do Clear(t) end
   Clear(focusTrack)
   useCount = 0
   cur = nil
@@ -294,12 +330,9 @@ local function Same(a, b)
   return r
 end
 
--- the track a frame shows: a boss of the encounter is followed from its first hit, the focus
--- for as long as it is the focus, any other target since it became the target
+-- the track a frame shows: the focus for as long as it is the focus (also in the target frame
+-- when the target is the focus), any other target since it became the target
 local function TrackFor(unit)
-  for _, t in ipairs(bossTracks) do
-    if t.hit and Same(unit, t.unit) == true then return t end
-  end
   if unit == "focus" then return focusTrack end
   if db.focus and focusTrack.hit and Same("target", "focus") == true then return focusTrack end
   return cur
@@ -432,20 +465,35 @@ local function BuildView(unit, pointKey, defaultY, label)
     local c = {}
     c.frame = CreateFrame("Frame", nil, root)
     c.frame:SetAllPoints(hud)
-    c.icon = c.frame:CreateTexture(nil, "ARTWORK")
+    -- the number (its opacity: "Show from" and enough lost) and, while it waits, a dim icon
+    -- (or a dim "...") that says "counting"
+    c.num = CreateFrame("Frame", nil, c.frame)
+    c.num:SetAllPoints(hud)
+    c.wait = CreateFrame("Frame", nil, c.frame)
+    c.wait:SetAllPoints(hud)
+    c.waitIcon = c.wait:CreateTexture(nil, "ARTWORK")
+    c.waitIcon:SetSize(26, 26)
+    c.waitIcon:SetPoint("LEFT", hud, "LEFT", 3, 0)
+    c.waitIcon:SetTexture(Skin.LOGO)
+    c.waitIcon:SetAlpha(0.4)
+    c.waitText = c.wait:CreateFontString(nil, "OVERLAY")
+    BigFont(c.waitText)
+    c.waitText:SetText("...")
+    c.waitText:SetAlpha(0.4)
+    c.icon = c.num:CreateTexture(nil, "ARTWORK")
     c.icon:SetSize(26, 26)
     c.icon:SetPoint("LEFT", hud, "LEFT", 3, 0)
     c.icon:SetTexture(Skin.LOGO)
-    c.textN = c.frame:CreateFontString(nil, "OVERLAY")
+    c.textN = c.num:CreateFontString(nil, "OVERLAY")
     BigFont(c.textN)
     c.textN:SetTextColor(1, 1, 1)
-    c.textU = c.frame:CreateFontString(nil, "OVERLAY")
+    c.textU = c.num:CreateFontString(nil, "OVERLAY")
     BigFont(c.textU)
     c.textU:SetTextColor(1, 0.25, 0.30)
     c.textU:SetAlpha(0)
     if unit ~= "target" then
       -- a small word over the seconds tells the second frame from the first
-      c.tag = c.frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+      c.tag = c.num:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
       c.tag:SetPoint("BOTTOM", hud, "TOP", 0, 1)
       c.tag:SetText(label)
     end
@@ -481,6 +529,10 @@ function ns.Apply()
       c.frame:ClearAllPoints()
       c.frame:SetAllPoints(v.hud)
       c.icon:SetShown(cfg.icon)
+      c.waitIcon:SetShown(cfg.icon)
+      c.waitText:SetShown(not cfg.icon)
+      c.waitText:ClearAllPoints()
+      c.waitText:SetPoint("CENTER", v.hud, "CENTER", 0, 0)
       c.textN:ClearAllPoints()
       c.textN:SetPoint(point, v.hud, point, x, 0)
       c.textU:ClearAllPoints()
@@ -525,7 +577,6 @@ local function BuildAll()
   root:SetPoint("CENTER")
   for i = 1, SLOTS do targetSlots[i] = NewTrack("target") end
   focusTrack = NewTrack("focus")
-  for i = 1, BOSSES do bossTracks[i] = NewTrack("boss" .. i) end
   local main = BuildView("target", "point", 140, L.hudDrag)
   BuildView("focus", "focusPoint", 100, L.hudFocus)
   lockBtn = HudButton(main.chrome, L.optLock, function() return L.optLock end, function() return L.tipHudLock end)
@@ -535,7 +586,7 @@ local function BuildAll()
   setBtn:SetPoint("TOPLEFT", main.hud, "BOTTOM", 2, -5)
   setBtn:SetScript("OnClick", function() if ns.ToggleOptions then ns.ToggleOptions(true) end end)
   ns.views, ns.hud, ns.cells = views, main.hud, main.cells
-  ns.targetSlots, ns.focusTrack, ns.bossTracks = targetSlots, focusTrack, bossTracks
+  ns.targetSlots, ns.focusTrack = targetSlots, focusTrack
 end
 
 ------------------------------------------------------------------------
@@ -558,11 +609,19 @@ local function ShowBand(v, t, k, T, cfg)
   c.textN:SetText(text)
   c.textU:SetText(text)
   -- "Show from": hidden while more than the limit is left, and until the unit has lost
-  -- enough for an estimate (LOST below full, or below the band it was in at its first hit)
+  -- enough for an estimate; while it waits for that, the dim "counting" sign
+  local lost
+  if Grouped(unit) then
+    lost = T >= GROUP_TIME and (b.full and LOST_GROUP or LOST_HURT) or LOST_EARLY
+  else
+    lost = b.full and LOST_SOLO or LOST_HURT
+  end
+  local top = b.start - lost
   local limit = cfg.limit > 0 and cfg.limit or CAP
-  local top = (k == 1 and 1 or b.lo) - LOST
   Band(limitCurve, math.min(ShareAt(limit, T, b.start), top), true)
-  if not Opacity(c.frame, unit, limitCurve) then return false end
+  if not Opacity(c.num, unit, limitCurve) then return false end
+  Band(waitCurve, top, false)
+  if not Opacity(c.wait, unit, waitCurve) then return false end
   -- "Last seconds in red": the red text below the mark, the white one above it
   if cfg.urgent > 0 then
     local share = ShareAt(cfg.urgent, T, b.start)
@@ -582,7 +641,7 @@ local function ShowView(v, t, cfg)
   local start = t.hit - (t.lastHit - t.hit) / (t.hits - 1)
   local T = GetTime() - start
   t.asked = t.asked + 1
-  for k = 1, #BANDS do
+  for _, k in ipairs(t.bands) do
     if not ShowBand(v, t, k, T, cfg) then
       t.failed = t.failed + 1
       return false
@@ -593,7 +652,6 @@ end
 
 -- test builds: in a boss fight a screenshot every SHOT_EVERY seconds while the target's
 -- seconds are worked out, for checking them against the fight afterwards (and for pictures); /lbf shots
-local encounter -- the id of the running encounter, or nil
 local SHOT_EVERY, SHOT_MAX = 10, 80
 local lastShot, shotCount = 0, 0
 local function MaybeShot()
@@ -610,12 +668,22 @@ local function Update()
     if db.locked and Enabled(v) and Hostile(v.unit) then t = TrackFor(v.unit) end
     Attach(v, t)
     local cfg = Cfg(v)
-    if Ready(t, cfg) and ShowView(v, t, cfg) then
-      for _, c in ipairs(v.cells) do c.frame:Show() end
-      if v.unit == "target" then MaybeShot() end
+    if Counting(t, cfg) then
+      if Ready(t) then
+        if ShowView(v, t, cfg) then
+          if v.unit == "target" then MaybeShot() end
+        else
+          HideCells(v)
+          Broken()
+          t = nil
+        end
+      else
+        -- a few hits or seconds still missing: only the "counting" sign
+        for _, c in ipairs(v.cells) do c.num:SetAlpha(0) c.wait:SetAlpha(1) end
+      end
+      if t then for _, c in ipairs(v.cells) do c.frame:Show() end end
     else
       HideCells(v)
-      if t and t.failed > 0 then Broken() end
     end
   end
 end
@@ -637,13 +705,14 @@ local function CheckLine(why)
   add("target", best)
   for _, t in ipairs(targetSlots) do t.maxHits, t.asked, t.failed = 0, 0, 0 end
   add("focus", focusTrack)
-  for i, t in ipairs(bossTracks) do
-    if i == 1 or t.maxHits > 0 then add(t.unit, t) end
-  end
   parts[#parts + 1] = string.format("same[y=%d n=%d ?=%d]", same.yes, same.no, same.unknown)
   same.yes, same.no, same.unknown = 0, 0, 0
-  parts[#parts + 1] = string.format("now[boss1=%s focus=%s guid=%s]", Yn(Bool(UnitExists, "boss1")),
-    Yn(Bool(UnitExists, "focus")), type(Plain(UnitGUID, "target")) == "string" and "plain" or "hidden")
+  -- did the game say whether a unit was already fighting when its count began?
+  parts[#parts + 1] = string.format("fighting[y=%d n=%d ?=%d]", fights.yes, fights.no, fights.unknown)
+  fights.yes, fights.no, fights.unknown = 0, 0, 0
+  local n = Plain(GetNumGroupMembers)
+  parts[#parts + 1] = string.format("now[focus=%s guid=%s group=%s]", Yn(Bool(UnitExists, "focus")),
+    type(Plain(UnitGUID, "target")) == "string" and "plain" or "hidden", tostring(n or "?"))
   local list = db.checks
   list[#list + 1] = table.concat(parts, " ")
   while #list > 30 do table.remove(list, 1) end
@@ -687,7 +756,6 @@ local function OnEvent(_, event, a1)
     ns.Apply()
     Listen("target", function() Hit(cur) end)
     Listen("focus", function() Hit(focusTrack) end)
-    for _, t in ipairs(bossTracks) do Listen(t.unit, function() Hit(t) end) end
     if ns.InitOptions then ns.InitOptions() end
   elseif not ready then
     return
@@ -707,11 +775,9 @@ local function OnEvent(_, event, a1)
     FocusChanged()
   elseif event == "ENCOUNTER_START" then
     encounter = Plain(function() return a1 end) or 0
-    for _, t in ipairs(bossTracks) do Clear(t) end
   elseif event == "ENCOUNTER_END" then
     CheckLine("boss")
     encounter = nil
-    for _, t in ipairs(bossTracks) do Clear(t) end
   elseif event == "PLAYER_ENTERING_WORLD" then
     inCombat = Bool(InCombatLockdown) == true
     if inCombat and not db.locked then ns.SetLocked(true, true) end

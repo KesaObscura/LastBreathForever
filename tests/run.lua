@@ -255,7 +255,7 @@ end)
 test("broken saved settings are replaced by the defaults", function()
   local ns = fresh({ db = { scale = "big", limit = 77, urgent = -1, icon = 5, point = "x" } })
   local d = ns.db
-  assert(d.scale == 1 and d.limit == 300 and d.urgent == 5 and d.icon == true and d.point == nil)
+  assert(d.scale == 1 and d.limit == 300 and d.urgent == 10 and d.icon == true and d.point == nil)
 end)
 
 test("unlocked: a sample shows, a fight locks the frame again", function()
@@ -318,6 +318,8 @@ test("settings: steppers walk their lists and stop at the ends", function()
   assert(ns.db.scale == 0.5)
   for _ = 1, 9 do c[8].scripts.OnClick(c[8]) end
   assert(ns.db.urgent == 0)
+  c[9].scripts.OnClick(c[9])
+  assert(ns.db.urgent == 5, "no 3 s step any more")
   for _ = 1, 9 do c[9].scripts.OnClick(c[9]) end
   assert(ns.db.urgent == 60)
 end)
@@ -350,35 +352,6 @@ local function focusSeconds(ns)
 end
 local ALLY = { exists = true, hostile = false, guid = "ally" }
 local function boss() return { exists = true, hostile = true, guid = "boss", class = "elite", level = 30, hp = 1 } end
-
-test("healer: the boss is followed while an ally is the target; its seconds are there at once", function()
-  local ns = fresh()
-  local b = boss()
-  M.target = ALLY
-  M.bosses[1] = b
-  M.fire("ENCOUNTER_START", 592)
-  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
-  M.fire("PLAYER_TARGET_CHANGED")
-  for _ = 1, 20 do b.hp = b.hp - 0.02 M.hit(b) M.tick(1, 0) end     -- 60 % after 20 s
-  assert(not shown(ns), "an ally is the target: nothing on screen")
-  M.target, M.hp = b, b.hp
-  M.fire("PLAYER_TARGET_CHANGED")
-  M.tick(0.2, 0)
-  assert(shown(ns), "the boss becomes the target: seconds at once")
-  near(seconds(ns), 30, 3, "60 % left at 2 % per second")
-end)
-
-test("the boss cannot be followed directly (no hits for 'boss1'): the target still works", function()
-  local ns = fresh({ setup = function(m) m.noUnitEvents.boss1 = true end })
-  local b = boss()
-  M.bosses[1] = b
-  M.target, M.hp = b, 1
-  M.fire("ENCOUNTER_START", 592)
-  M.fire("PLAYER_TARGET_CHANGED")
-  fight(8, 0.05)
-  M.now = M.now - 1 M.tick(0.2, 0)
-  near(seconds(ns), 12, 1, "from the target's own count")
-end)
 
 test("the game does not say whether target and boss are the same: the target still works", function()
   local ns = fresh({ setup = function(m) m.secretSame = true end })
@@ -468,7 +441,8 @@ test("/lbf check: one line per fight, no names, no secrets", function()
   M.combat = false M.fire("PLAYER_REGEN_ENABLED")
   local list = ns.db.checks
   assert(#list == 2, "boss line and fight line, got " .. #list)
-  assert(list[1]:find("boss enc=592", 1, true) and list[1]:find("boss1[hits=8", 1, true), list[1])
+  assert(list[1]:find("boss enc=592", 1, true) and list[1]:find("target[hits=8", 1, true), list[1])
+  assert(list[1]:find("fighting%[y=%d+ n=%d+ %?=0%]"), list[1])
   assert(list[1]:find("same%[y=%d+ n=0 %?=0%]"), list[1])
   for _, l in ipairs(list) do assert(type(l) == "string" and not issecretvalue(l) and not l:find("boss\"")) end
   SlashCmdList.LASTBREATHFOREVER("check")
@@ -595,6 +569,68 @@ test("unlocked: the words and buttons around the frame keep their size at any fr
   assert(edges == 4, "the outline is drawn at full size, got " .. edges)
   SlashCmdList.LASTBREATHFOREVER("lock")
   assert(not M.visible(v.drag), "gone when locked")
+end)
+
+local function waiting(ns)
+  for _, c in ipairs(ns.cells) do
+    if M.visible(c.waitIcon) or M.visible(c.waitText) then return true end
+  end
+  return false
+end
+
+test("while counting without a number: a dim icon, then the number", function()
+  local ns = fresh({ db = { limit = 0 } })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  M.tick(1, 0)
+  assert(not waiting(ns) and not shown(ns), "no hit yet: nothing")
+  M.hp = 0.99 M.hit() M.tick(0.4, 0)
+  assert(waiting(ns) and not shown(ns), "first hit: the dim icon")
+  M.hp = 0.98 M.hit() M.tick(1, 0)
+  M.hp = 0.97 M.hit() M.tick(1.4, 0)
+  assert(waiting(ns) and not shown(ns), "3 % lost: still the dim icon")
+  M.hp = 0.94 M.tick(0.2, 0)
+  assert(shown(ns) and not waiting(ns), "6 % lost: the number, no dim icon")
+  ns.db.icon = false ns.Apply()
+  M.target.dead = true M.tick(0.2, 0)
+  assert(not waiting(ns) and not shown(ns), "dead: nothing")
+end)
+
+test("group: the number waits for 10 s and 3 %, or 20 % lost", function()
+  local ns = fresh({ db = { limit = 0 }, setup = function(m) m.group = 5 end })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 6 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end     -- 94 % after 6 s
+  assert(not shown(ns) and waiting(ns), "group, 6 % lost after 6 s: wait")
+  for _ = 1, 5 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end     -- 89 % after 11 s
+  assert(shown(ns), "after 10 s and 3 %: shown")
+  near(seconds(ns), 89, 12, "1 % per second")
+  -- a quick boss: 20 % in 5 s shows at once
+  local ns2 = fresh({ db = { limit = 0 }, setup = function(m) m.group = 5 end })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 5 do M.hp = M.hp - 0.045 M.hit() M.tick(1, 0) end    -- 77.5 % after 5 s
+  assert(shown(ns2), "22.5 % lost: shown before 10 s")
+end)
+
+test("a target already fighting at 91 % is not taken for full (no halved number)", function()
+  local ns = fresh({ db = { limit = 0 } })
+  -- a new mob, already in the fight (the tank's AoE took it to 91 %)
+  M.target = { exists = true, hostile = true, guid = "mob-2", fighting = true }
+  M.hp = 0.91
+  M.fire("PLAYER_TARGET_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 10 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end    -- 81 %, 1 % per second
+  M.now = M.now - 1 M.tick(0.2, 0)
+  near(seconds(ns), 81, 12, "about 81 s left (taken for full: about 40)")
+end)
+
+test("a target taken out of combat counts as full; the game not saying: narrow bands, still right", function()
+  local ns = fresh({ db = { limit = 0 } })
+  fight(10, 0.01)                                                 -- 90 %
+  M.now = M.now - 1 M.tick(0.2, 0)
+  near(seconds(ns), 90, 6, "full")
+  local ns2 = fresh({ db = { limit = 0 }, setup = function(m) m.noCombatInfo = true end })
+  fight(10, 0.01)
+  M.now = M.now - 1 M.tick(0.2, 0)
+  near(seconds(ns2), 99, 15, "the game did not say: from the 97.5-100 % band, about 12 % high")
 end)
 
 for _, t in ipairs(tests) do
