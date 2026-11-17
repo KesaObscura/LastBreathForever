@@ -581,6 +581,17 @@ test("the settings window keeps its place", function()
   assert(p[1] == "TOPLEFT" and p[4] == 300 and p[5] == 700, "opens where it was left")
 end)
 
+test("unlocked: the words and buttons around the frame keep their size at any frame size", function()
+  local ns = fresh({ db = { scale = 0.5 } })
+  SlashCmdList.LASTBREATHFOREVER("unlock")
+  local v = ns.views[1]
+  assert(v.hud:GetScale() == 0.5)
+  assert(v.chrome.parent == UIParent and v.chrome:GetScale() == 1, "not scaled with the frame")
+  assert(M.visible(v.drag) and v.drag.parent == v.chrome)
+  SlashCmdList.LASTBREATHFOREVER("lock")
+  assert(not M.visible(v.drag), "gone when locked")
+end)
+
 for _, t in ipairs(tests) do
   local ok, err = pcall(t.fn)
   if ok then io.write("ok   ", t.name, "\n") else failed = failed + 1 io.write("FAIL ", t.name, "\n     ", tostring(err), "\n") end
