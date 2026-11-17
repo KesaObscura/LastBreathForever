@@ -9,7 +9,8 @@ local COL, PAD, ROW = 370, 18, 30   -- two columns: target | focus
 local W = 2 * COL
 local VALUE_X = 214 -- where the values of the steppers start, from the label's left edge
 local win
-local registry = {} -- everything with a Refresh
+local registry = {} -- everything with a Refresh (made anew with the window)
+local openList    -- the open list of a dropdown: one at a time
 
 local function Label(parent, text, font)
   local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
@@ -156,12 +157,92 @@ local function InList(list)
   end
 end
 
-local function Header(parent, text)
+-- a section header: white text with the game's divider under it, `width` wide
+local function Header(parent, text, width)
   local fs = Label(parent, text, _G.GameFontHighlightMedium and "GameFontHighlightMedium" or "GameFontHighlight")
   local line = Skin.Divider(parent)
   line:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -3)
+  line:SetWidth(width)
   fs.line = line
   return fs
+end
+
+-- a flat button: dropdown bodies and list rows
+local function PlainButton(parent, text, w, h)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetSize(w, h or 22)
+  local hl = b:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetAllPoints()
+  hl:SetColorTexture(1, 0.82, 0, 0.12)
+  b:SetNormalFontObject("GameFontHighlightSmall")
+  b:SetHighlightFontObject("GameFontHighlightSmall")
+  b:SetDisabledFontObject("GameFontDisableSmall")
+  b:SetText(text)
+  FitWidth(b, w)
+  return b
+end
+
+-- a dropdown like the game's: a field that opens a list below it. dd.Select(value) is what a
+-- click on a list row does (also used by the tests)
+local function Dropdown(parent, width, entries, getText, onPick)
+  local dd = PlainButton(parent, " ", width)
+  dd:SetWidth(width)
+  Skin.Field(dd)
+  local fs = dd:GetFontString()
+  if fs then
+    fs:ClearAllPoints()
+    fs:SetPoint("LEFT", 10, 0)
+    fs:SetPoint("RIGHT", -24, 0)
+    fs:SetJustifyH("LEFT")
+    if fs.SetWordWrap then fs:SetWordWrap(false) end
+  end
+  if not Skin.DropArrow(dd) then
+    local arrow = dd:CreateTexture(nil, "OVERLAY")
+    arrow:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
+    arrow:SetSize(12, 12)
+    arrow:SetPoint("RIGHT", -6, 0)
+    arrow:SetRotation(-math.pi / 2)
+  end
+  local list = CreateFrame("Frame", nil, dd)
+  list:SetFrameStrata("FULLSCREEN_DIALOG")
+  list:SetPoint("BOTTOMRIGHT", dd, "TOPRIGHT", 0, 2) -- it sits in the footer: the list opens upwards
+  list:SetClampedToScreen(true)
+  list:EnableMouse(true)
+  local lbg = list:CreateTexture(nil, "BACKGROUND")
+  lbg:SetAllPoints()
+  lbg:SetColorTexture(Skin.BG[1], Skin.BG[2], Skin.BG[3], 0.98)
+  Skin.Edge(list, Skin.EDGE, 1)
+  list:Hide()
+  function dd.Select(value)
+    list:Hide()
+    onPick(value)
+  end
+  local rows, maxW = {}, width
+  for i, e in ipairs(entries) do
+    local r = PlainButton(list, e.text, width, 20)
+    local rfs = r:GetFontString()
+    if rfs then
+      rfs:ClearAllPoints()
+      rfs:SetPoint("LEFT", 10, 0)
+    end
+    r:SetPoint("TOPLEFT", list, "TOPLEFT", 2, -2 - (i - 1) * 21)
+    r:SetScript("OnClick", function() dd.Select(e.value) end)
+    maxW = math.max(maxW, r:GetWidth() or width)
+    rows[i] = r
+  end
+  for _, r in ipairs(rows) do r:SetWidth(maxW) end
+  list:SetSize(maxW + 4, #entries * 21 + 3)
+  dd.list, dd.rows = list, rows
+  dd:SetScript("OnClick", function()
+    if list:IsShown() then list:Hide() return end
+    if openList and openList ~= list then openList:Hide() end
+    openList = list
+    list:Show()
+  end)
+  dd:SetScript("OnHide", function() list:Hide() end)
+  dd.Refresh = function() dd:SetText(getText()) end
+  registry[#registry + 1] = dd
+  return dd
 end
 
 -- Esc closes the window (the game looks the name up in UISpecialFrames)
@@ -172,18 +253,48 @@ local function EscListed(frame, name)
   table.insert(UISpecialFrames, name)
 end
 
-local function Build()
+local Build
+-- a new language: the window is built anew in it (and opened again where it was)
+local function LanguageChanged(code)
   local db = ns.db
+  if code == db.language then return end
+  db.language = code
+  ns.SetLanguage(code)
+  if ns.OnLanguageChanged then ns.OnLanguageChanged() end
+  local wasShown = win and win:IsShown()
+  if win then win:Hide() end
+  win = nil
+  Build()
+  ns.RefreshOptions()
+  if wasShown then win:Show() end
+end
+
+-- the window: a title band, "Target | Focus" in two columns with the same rows at the same
+-- heights, and a footer across both (language, unlock, reset), as in Full Mana Forever
+Build = function()
+  local db = ns.db
+  registry = {}
   win = CreateFrame("Frame", nil, UIParent)
   win:SetSize(W, 400)
-  win:SetPoint("CENTER")
+  -- its own place, kept for the account; the first time at the right edge of the screen
+  local op = db.optPoint
+  if op then
+    win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", op[1], op[2])
+  else
+    win:SetPoint("RIGHT", UIParent, "RIGHT", -20, 0)
+  end
   win:SetFrameStrata("DIALOG")
+  if win.SetToplevel then win:SetToplevel(true) end
   win:EnableMouse(true)
   win:SetMovable(true)
   win:SetClampedToScreen(true)
   win:RegisterForDrag("LeftButton")
   win:SetScript("OnDragStart", win.StartMoving)
-  win:SetScript("OnDragStop", win.StopMovingOrSizing)
+  win:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    local l, t = self:GetLeft(), self:GetTop()
+    if l and t then db.optPoint = { l, t } end
+  end)
   win:Hide()
   EscListed(win, "LastBreathForeverOptions")
   Skin.Window(win, 0, { portrait = Skin.LOGO })
@@ -203,13 +314,14 @@ local function Build()
   win.close = close
 
   local top = Skin.ContentTop(win) - 6
+  local IN = 4 -- rows sit a little right of their header, like the game's settings
   win.controls = { close }
   local function control(...)
     for _, c in ipairs({ ... }) do win.controls[#win.controls + 1] = c end
   end
 
   -- the five settings of one frame, the same rows in both columns. cfg() = the table they
-  -- are read from, own() = the table they are written to (nil: greyed out)
+  -- are read and written; enabledIf() false greys them out
   local function Column(x, y, cfg, enabledIf, changed)
     local function at(widget, dy)
       widget:SetPoint("TOPLEFT", win, "TOPLEFT", x, y)
@@ -240,72 +352,90 @@ local function Build()
     local elite = Check(win, L.optElite, L.tipElite, function() return cfg().elite end,
       function(v) cfg().elite = v end, enabledIf)
     at(elite, 28)
-    control(size.minus, size.plus, size.tipArea, limit.minus, limit.plus, limit.tipArea,
-      urgent.minus, urgent.plus, urgent.tipArea, icon, elite)
-    return y
+    local list = { size.minus, size.plus, size.tipArea, limit.minus, limit.plus, limit.tipArea,
+      urgent.minus, urgent.plus, urgent.tipArea, icon, elite }
+    control(unpack(list))
+    return y, list
   end
 
-  local function header(text, x)
-    local h = Header(win, text)
-    h:SetPoint("TOPLEFT", win, "TOPLEFT", x, top)
-    h.line:SetPoint("RIGHT", win, "TOPLEFT", x + COL - 2 * PAD, 0)
-  end
   local LX, RX = PAD, COL + PAD
-  local introY, rowsY = top - 30, top - 30 - 58
+  local introY = top - 30
+  local rowsY = introY - 58
 
   -- left: the target
-  header(L.optTarget, LX)
+  local h1 = Header(win, L.optTarget, COL - 2 * PAD)
+  h1:SetPoint("TOPLEFT", win, "TOPLEFT", LX, top)
   local intro = Label(win, L.noteTarget, "GameFontHighlightSmall")
-  intro:SetPoint("TOPLEFT", win, "TOPLEFT", LX, introY - 6)
-  intro:SetWidth(COL - 2 * PAD)
-  local y = Column(LX, rowsY, function() return db end, nil, ns.Apply)
+  intro:SetPoint("TOPLEFT", win, "TOPLEFT", LX + IN, introY - 6)
+  intro:SetWidth(COL - 2 * PAD - IN)
+  local y, leftRows = Column(LX + IN, rowsY, function() return db end, nil, ns.Apply)
 
   -- right: the focus. Two switches, then the same rows: the target's values greyed out while
   -- the focus follows them, its own otherwise
-  header(L.hudFocus, RX)
+  local h2 = Header(win, L.hudFocus, COL - 2 * PAD)
+  h2:SetPoint("TOPLEFT", win, "TOPLEFT", RX, top)
   local show = Check(win, L.optFocus, L.tipFocus, function() return db.focus end,
     function(v) db.focus = v; ns.Apply() end)
-  show:SetPoint("TOPLEFT", win, "TOPLEFT", RX, introY)
+  show:SetPoint("TOPLEFT", win, "TOPLEFT", RX + IN, introY)
   local sameAs = Check(win, L.optSame, L.tipSame, function() return db.focusSame end,
     function(v) db.focusSame = v; ns.Apply() end, function() return db.focus end)
-  sameAs:SetPoint("TOPLEFT", win, "TOPLEFT", RX, introY - 26)
+  sameAs:SetPoint("TOPLEFT", win, "TOPLEFT", RX + IN, introY - 26)
   control(show, sameAs)
-  Column(RX, rowsY, function() return db.focusSame and db or db.f end,
+  local _, rightRows = Column(RX + IN, rowsY, function() return db.focusSame and db or db.f end,
     function() return db.focus and not db.focusSame end, ns.Apply)
 
-  -- a thin line between the columns
-  local sep = win:CreateTexture(nil, "ARTWORK")
-  sep:SetWidth(1)
-  sep:SetPoint("TOP", win, "TOPLEFT", COL, top + 2)
-  sep:SetPoint("BOTTOM", win, "TOPLEFT", COL, y + 14)
-  sep:SetColorTexture(Skin.EDGE[1], Skin.EDGE[2], Skin.EDGE[3], 0.6)
+  -- what the seconds are, across both columns
+  y = y - 4
+  local note = Label(win, L.optNote, "GameFontDisableSmall")
+  note:SetPoint("TOPLEFT", win, "TOPLEFT", LX + IN, y)
+  note:SetWidth(W - 2 * PAD - IN)
+  note:SetTextColor(GREY[1] + 0.2, GREY[2] + 0.2, GREY[3] + 0.2)
+  local noteH = note.GetStringHeight and note:GetStringHeight() or 0
+  if type(noteH) ~= "number" or noteH < 24 then noteH = 24 end
+  y = y - noteH - 12
 
-  -- below both: where the frames stand, and what the seconds are
-  y = y - 8
-  local pos = Header(win, L.optPosition)
-  pos:SetPoint("TOPLEFT", win, "TOPLEFT", PAD, y)
-  pos.line:SetPoint("RIGHT", win, "RIGHT", -PAD, 0)
-  y = y - 32
-  local lock = Button(win, L.optUnlock, 120)
-  lock:SetPoint("TOPLEFT", win, "TOPLEFT", PAD, y)
+  -- the line between the columns, from under the headers down to the footer line
+  local sep = win:CreateTexture(nil, "ARTWORK")
+  sep:SetColorTexture(Skin.EDGE[1], Skin.EDGE[2], Skin.EDGE[3], 0.6)
+  sep:SetWidth(1)
+  sep:SetPoint("TOP", win, "TOPLEFT", COL, top - 22)
+  sep:SetPoint("BOTTOM", win, "TOPLEFT", COL, y + noteH + 16)
+
+  -- footer across both columns: the language (left), placing the frames (right)
+  local fline = win:CreateTexture(nil, "ARTWORK")
+  fline:SetColorTexture(Skin.EDGE[1], Skin.EDGE[2], Skin.EDGE[3], 0.6)
+  fline:SetHeight(1)
+  fline:SetPoint("TOPLEFT", win, "TOPLEFT", PAD, y)
+  fline:SetPoint("TOPRIGHT", win, "TOPRIGHT", -PAD, y)
+  y = y - 14
+  local langLabel = Label(win, L.optLang .. ":")
+  langLabel:SetPoint("TOPLEFT", win, "TOPLEFT", LX + IN, y - 4)
+  local entries = { { value = "auto", text = L.langAuto .. " (" .. ns.LanguageName(ns.GameLanguage()) .. ")" } }
+  for _, l in ipairs(ns.LANGUAGES) do entries[#entries + 1] = { value = l.code, text = l.name } end
+  local lang = Dropdown(win, 200, entries, function()
+    if db.language == "auto" then return L.langAuto end
+    return ns.LanguageName(db.language, true)
+  end, LanguageChanged)
+  lang:SetPoint("LEFT", langLabel, "LEFT", 90, 0)
+  Tip(lang, L.optLang, L.tipLang)
+  local langTip = TipArea(win, langLabel, L.optLang, L.tipLang)
+  local reset = Button(win, L.optResetPos, 150)
+  reset:SetPoint("TOPRIGHT", win, "TOPRIGHT", -PAD, y)
+  reset:SetScript("OnClick", function() ns.ResetPosition() end)
+  Tip(reset, L.optResetPos, L.tipResetPos)
+  local lock = Button(win, L.optUnlock, 150)
+  lock:SetPoint("RIGHT", reset, "LEFT", -8, 0)
   lock:SetScript("OnClick", function() ns.SetLocked(not db.locked, true) end)
   Tip(lock, L.optUnlock, L.tipUnlock)
   lock.Refresh = function()
     lock:SetText(db.locked and L.optUnlock or L.optLock)
-    FitWidth(lock, 120)
+    FitWidth(lock, 150)
   end
   registry[#registry + 1] = lock
-  local reset = Button(win, L.optResetPos, 120)
-  reset:SetPoint("LEFT", lock, "RIGHT", 8, 0)
-  reset:SetScript("OnClick", function() ns.ResetPosition() end)
-  Tip(reset, L.optResetPos, L.tipResetPos)
-  control(lock, reset)
-  local note = Label(win, L.optNote, "GameFontDisableSmall")
-  note:SetPoint("LEFT", reset, "RIGHT", 16, 0)
-  note:SetPoint("RIGHT", win, "RIGHT", -PAD, 0)
-  note:SetTextColor(GREY[1] + 0.2, GREY[2] + 0.2, GREY[3] + 0.2)
-  win:SetHeight(-(y - 22 - 24))
-  win.widgets = { show = show, sameAs = sameAs }
+  control(lang, langTip, lock, reset)
+  win:SetHeight(-(y - 22 - 16))
+  win.widgets = { show = show, sameAs = sameAs, lang = lang, lock = lock, reset = reset,
+    leftRows = leftRows, rightRows = rightRows }
   ns.optionsWindow = win
 end
 

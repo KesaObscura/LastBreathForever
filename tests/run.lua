@@ -199,8 +199,8 @@ end)
 test("'Last seconds in red' goes up to 60 s (cooldowns kept for the end)", function()
   local ns = fresh({ db = { urgent = 60, limit = 0 } })
   assert(ns.db.urgent == 60, "60 is a valid choice")
-  fight(10, 0.005)                                -- 95 %: about 190 s left
-  assert(white(ns), "white at 190 s")
+  fight(10, 0.006)                                -- 94 %: about 157 s left
+  assert(white(ns), "white at 157 s")
   M.tick(30, 0.02)                                -- 35 % after 40 s: about 20 s left
   assert(red(ns), "red below 60 s")
 end)
@@ -290,7 +290,7 @@ test("settings: every control has a tooltip, also the greyed-out ones", function
   ns.ToggleOptions()
   local win = ns.optionsWindow
   assert(win and win:IsShown())
-  assert(#win.controls == 27, "controls: " .. #win.controls)
+  assert(#win.controls == 29, "controls: " .. #win.controls)
   for i, c in ipairs(win.controls) do
     assert(c.scripts.OnEnter and c.tipTitle and c.tipText and c.tipText ~= "", "control " .. i .. " has no tooltip")
     c.scripts.OnEnter(c)
@@ -502,13 +502,13 @@ test("focus frame follows the target's settings until it gets its own", function
   M.focus = f
   M.fire("PLAYER_FOCUS_CHANGED")
   M.combat = true M.fire("PLAYER_REGEN_DISABLED")
-  for _ = 1, 5 do f.hp = f.hp - 0.01 M.hit(f) M.tick(1, 0) end       -- about 100 s left
+  for _ = 1, 5 do f.hp = f.hp - 0.012 M.hit(f) M.tick(1, 0) end      -- about 80 s left
   assert(focusSeconds(ns), "target's rule 'always': shown")
   ns.db.focusSame = false
   ns.db.f.limit, ns.db.f.scale = 30, 0.8
   ns.Apply()
   M.tick(0.2, 0)
-  assert(not focusSeconds(ns), "its own rule '30 s': hidden at 100 s")
+  assert(not focusSeconds(ns), "its own rule '30 s': hidden at 80 s")
   assert(v2.hud:GetScale() == 0.8 and ns.views[1].hud:GetScale() == 1.5, "each frame its own size")
   assert(v2.cells[1].frame:GetScale() == 0.8, "the seconds take the frame's size")
 end)
@@ -517,11 +517,7 @@ test("settings: the focus column is greyed out while it follows the target", fun
   local ns = fresh()
   ns.ToggleOptions()
   local w = ns.optionsWindow.widgets
-  local c = ns.optionsWindow.controls
-  -- right column: its five rows are the last 11 controls before lock and reset
-  local n = #c
-  local focusRows = {}
-  for i = n - 12, n - 2 do focusRows[#focusRows + 1] = c[i] end
+  local focusRows = w.rightRows
   local function anyEnabled()
     for _, x in ipairs(focusRows) do
       if (x.kind == "Button" or x.kind == "CheckButton") and x:IsEnabled() then return true end
@@ -537,6 +533,52 @@ test("settings: the focus column is greyed out while it follows the target", fun
   local plus = focusRows[2]
   plus.scripts.OnClick(plus)
   assert(ns.db.f.scale == 1.1 and ns.db.scale == 1)
+end)
+
+test("no estimate until the target has lost 5 % (the first seconds are too unsure)", function()
+  local ns = fresh({ db = { limit = 0 } })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 6 do M.hp = M.hp - 0.007 M.hit() M.tick(1, 0) end   -- 95.8 %
+  assert(not shown(ns), "4 % lost: nothing")
+  M.hp = 0.94 M.tick(0.2, 0)
+  assert(shown(ns), "6 % lost: shown")
+end)
+
+test("language: chosen in the settings, the window and the frames switch at once", function()
+  local ns = fresh()
+  ns.ToggleOptions()
+  local w = ns.optionsWindow.widgets
+  assert(M.reveal(w.lang:GetText()) == "Game language")
+  w.lang.Select("ruRU")
+  assert(ns.db.language == "ruRU")
+  local win = ns.optionsWindow
+  assert(win:IsShown(), "the window stays open, built anew")
+  assert(win.widgets.lang:GetText() == "Русский")
+  assert(win.widgets.lock:GetText() == "Разблокировать")
+  assert(ns.views[1].drag:GetText() == "Перетащи меня")
+  ns.views[1].hud.scripts.OnDragStop(ns.views[1].hud) -- nothing breaks with the new texts
+  win.widgets.lang.Select("auto")
+  assert(ns.db.language == "auto" and ns.optionsWindow.widgets.lock:GetText() == "Unlock")
+  -- the choice is kept: the next login starts in it
+  ns.db.language = "deDE"
+  local db = ns.db
+  local ns2 = fresh({ db = db })
+  ns2.ToggleOptions()
+  assert(ns2.optionsWindow.widgets.lock:GetText() == "Entsperren")
+  local ns3 = fresh({ db = { language = "xxXX" } })
+  assert(ns3.db.language == "auto", "an unknown language falls back to the game's")
+end)
+
+test("the settings window keeps its place", function()
+  local ns = fresh()
+  ns.ToggleOptions()
+  M.lt = { 300, 700 }
+  ns.optionsWindow.scripts.OnDragStop(ns.optionsWindow)
+  assert(ns.db.optPoint[1] == 300 and ns.db.optPoint[2] == 700)
+  local ns2 = fresh({ db = ns.db })
+  ns2.ToggleOptions()
+  local p = ns2.optionsWindow.point
+  assert(p[1] == "TOPLEFT" and p[4] == 300 and p[5] == 700, "opens where it was left")
 end)
 
 for _, t in ipairs(tests) do

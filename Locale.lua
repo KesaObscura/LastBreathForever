@@ -1,5 +1,6 @@
 -- Last Breath Forever - texts in 9 languages. The addon follows the game's language;
--- esMX uses the esES texts. Every key exists in every table (a test checks it).
+-- esMX uses the esES texts. Every key exists in every table (a test checks it). The language
+-- can also be chosen in the settings ("Game language" by default).
 
 local _, ns = ...
 
@@ -45,13 +46,16 @@ T.enUS = {
   msgReset = "Position reset.",
   warnBroken = "The game did not answer as expected: the seconds stay hidden.",
   optFocus = "Show a frame for the focus",
-  tipFocus = "A second frame shows the seconds of your focus. A fight locks it in place like the first one.",
+  tipFocus = "A second frame shows the seconds of your focus. Healers: put the boss in your focus and its seconds stay on screen while an ally is your target. A fight locks the frame in place like the first one.",
   hudFocus = "Focus",
   help5 = "/lbf check - what the game answered in the last fights (for bug reports)",
   optTarget = "Target",
   noteTarget = "The seconds of your current target.",
   optSame = "Same settings as the target",
   tipSame = "The focus frame looks and behaves like the target frame. Untick to give it its own size and rules.",
+  optLang = "Language",
+  tipLang = "Language of the addon's texts. \"Game language\" uses the language of your game.",
+  langAuto = "Game language",
 }
 
 T.deDE = {
@@ -94,13 +98,16 @@ T.deDE = {
   msgReset = "Position zurückgesetzt.",
   warnBroken = "Das Spiel hat nicht wie erwartet geantwortet: Die Sekunden bleiben ausgeblendet.",
   optFocus = "Rahmen für den Fokus anzeigen",
-  tipFocus = "Ein zweiter Rahmen zeigt die Sekunden deines Fokusziels. Ein Kampf sperrt ihn wie den ersten.",
+  tipFocus = "Ein zweiter Rahmen zeigt die Sekunden deines Fokusziels. Heiler: Setz den Boss als Fokus, dann bleiben seine Sekunden sichtbar, während ein Verbündeter dein Ziel ist. Ein Kampf sperrt den Rahmen wie den ersten.",
   hudFocus = "Fokus",
   help5 = "/lbf check - was das Spiel in den letzten Kämpfen geantwortet hat (für Fehlerberichte)",
   optTarget = "Ziel",
   noteTarget = "Die Sekunden deines aktuellen Ziels.",
   optSame = "Gleiche Einstellungen wie beim Ziel",
   tipSame = "Der Fokusrahmen sieht aus und verhält sich wie der Zielrahmen. Entferne den Haken für eigene Größe und Regeln.",
+  optLang = "Sprache",
+  tipLang = "Sprache der Addon-Texte. „Spielsprache“ nimmt die Sprache deines Spiels.",
+  langAuto = "Spielsprache",
 }
 
 T.ruRU = {
@@ -143,13 +150,16 @@ T.ruRU = {
   msgReset = "Положение сброшено.",
   warnBroken = "Игра ответила не так, как ожидалось: секунды остаются скрытыми.",
   optFocus = "Показывать рамку фокуса",
-  tipFocus = "Вторая рамка показывает секунды твоего фокуса. Бой закрепляет её так же, как первую.",
+  tipFocus = "Вторая рамка показывает секунды твоего фокуса. Хилам: поставь босса в фокус, и его секунды останутся на экране, пока в цели союзник. Бой закрепляет рамку так же, как первую.",
   hudFocus = "Фокус",
   help5 = "/lbf check - что игра ответила в последних боях (для сообщений об ошибках)",
   optTarget = "Цель",
   noteTarget = "Секунды твоей текущей цели.",
   optSame = "Те же настройки, что у цели",
   tipSame = "Рамка фокуса выглядит и ведёт себя как рамка цели. Сними галочку, чтобы задать ей свой размер и правила.",
+  optLang = "Язык",
+  tipLang = "Язык текстов аддона. «Язык игры» берёт язык твоей игры.",
+  langAuto = "Язык игры",
 }
 
 T.esES = {
@@ -192,13 +202,16 @@ T.esES = {
   msgReset = "Posición restablecida.",
   warnBroken = "El juego no respondió como se esperaba: los segundos siguen ocultos.",
   optFocus = "Mostrar un marco para el foco",
-  tipFocus = "Un segundo marco muestra los segundos de tu foco. Un combate lo bloquea igual que el primero.",
+  tipFocus = "Un segundo marco muestra los segundos de tu foco. Sanadores: pon al jefe como foco y sus segundos seguirán en pantalla mientras un aliado sea tu objetivo. Un combate bloquea el marco igual que el primero.",
   hudFocus = "Foco",
   help5 = "/lbf check - lo que respondió el juego en los últimos combates (para informes de errores)",
   optTarget = "Objetivo",
   noteTarget = "Los segundos de tu objetivo actual.",
   optSame = "Los mismos ajustes que el objetivo",
   tipSame = "El marco del foco se ve y se comporta como el del objetivo. Desmárcalo para darle su propio tamaño y sus reglas.",
+  optLang = "Idioma",
+  tipLang = "Idioma de los textos del addon. «Idioma del juego» usa el idioma de tu juego.",
+  langAuto = "Idioma del juego",
 }
 
 T.frFR = {
@@ -241,13 +254,16 @@ T.frFR = {
   msgReset = "Position réinitialisée.",
   warnBroken = "Le jeu n'a pas répondu comme prévu : les secondes restent masquées.",
   optFocus = "Afficher un cadre pour la focalisation",
-  tipFocus = "Un second cadre affiche les secondes de ta focalisation. Un combat le verrouille comme le premier.",
+  tipFocus = "Un second cadre affiche les secondes de ta focalisation. Soigneurs : mets le boss en focalisation et ses secondes restent à l'écran pendant qu'un allié est ta cible. Un combat verrouille le cadre comme le premier.",
   hudFocus = "Focalisation",
   help5 = "/lbf check - ce que le jeu a répondu lors des derniers combats (pour les rapports de bug)",
   optTarget = "Cible",
   noteTarget = "Les secondes de ta cible actuelle.",
   optSame = "Mêmes réglages que la cible",
   tipSame = "Le cadre de la focalisation ressemble à celui de la cible et se comporte de même. Décoche pour lui donner sa propre taille et ses règles.",
+  optLang = "Langue",
+  tipLang = "Langue des textes de l'addon. « Langue du jeu » utilise la langue de ton jeu.",
+  langAuto = "Langue du jeu",
 }
 
 T.ptBR = {
@@ -290,13 +306,16 @@ T.ptBR = {
   msgReset = "Posição redefinida.",
   warnBroken = "O jogo não respondeu como esperado: os segundos continuam ocultos.",
   optFocus = "Mostrar um quadro para o foco",
-  tipFocus = "Um segundo quadro mostra os segundos do seu foco. Um combate o bloqueia como o primeiro.",
+  tipFocus = "Um segundo quadro mostra os segundos do seu foco. Curandeiros: coloque o chefe como foco e os segundos dele ficam na tela enquanto um aliado é o seu alvo. Um combate bloqueia o quadro como o primeiro.",
   hudFocus = "Foco",
   help5 = "/lbf check - o que o jogo respondeu nos últimos combates (para relatos de erro)",
   optTarget = "Alvo",
   noteTarget = "Os segundos do seu alvo atual.",
   optSame = "As mesmas configurações do alvo",
   tipSame = "O quadro do foco tem a aparência e o comportamento do quadro do alvo. Desmarque para dar a ele tamanho e regras próprios.",
+  optLang = "Idioma",
+  tipLang = "Idioma dos textos do addon. \"Idioma do jogo\" usa o idioma do seu jogo.",
+  langAuto = "Idioma do jogo",
 }
 
 T.koKR = {
@@ -339,13 +358,16 @@ T.koKR = {
   msgReset = "위치를 초기화했습니다.",
   warnBroken = "게임이 예상과 다르게 응답했습니다. 초는 숨겨진 상태로 유지됩니다.",
   optFocus = "주시 대상 창 표시",
-  tipFocus = "두 번째 창에 주시 대상의 초를 표시합니다. 전투가 시작되면 첫 번째 창처럼 잠깁니다.",
+  tipFocus = "두 번째 창에 주시 대상의 초를 표시합니다. 치유사: 우두머리를 주시 대상으로 지정하면 아군을 대상으로 잡고 있어도 우두머리의 초가 화면에 남습니다. 전투가 시작되면 첫 번째 창처럼 잠깁니다.",
   hudFocus = "주시 대상",
   help5 = "/lbf check - 최근 전투에서 게임이 응답한 내용 (오류 보고용)",
   optTarget = "대상",
   noteTarget = "현재 대상의 초입니다.",
   optSame = "대상과 같은 설정",
   tipSame = "주시 대상 창이 대상 창과 같은 모양과 방식으로 동작합니다. 체크를 풀면 크기와 규칙을 따로 정할 수 있습니다.",
+  optLang = "언어",
+  tipLang = "애드온 텍스트의 언어. \"게임 언어\"는 게임의 언어를 사용합니다.",
+  langAuto = "게임 언어",
 }
 
 T.zhCN = {
@@ -388,13 +410,16 @@ T.zhCN = {
   msgReset = "位置已重置。",
   warnBroken = "游戏没有按预期响应：秒数保持隐藏。",
   optFocus = "显示焦点目标的框",
-  tipFocus = "第二个框显示你的焦点目标的秒数。进入战斗会像第一个框一样锁定它。",
+  tipFocus = "第二个框显示你的焦点目标的秒数。治疗：把首领设为焦点，当你的目标是队友时，它的秒数仍会留在屏幕上。进入战斗会像第一个框一样锁定它。",
   hudFocus = "焦点",
   help5 = "/lbf check - 最近几场战斗中游戏的响应（用于错误报告）",
   optTarget = "目标",
   noteTarget = "你当前目标的秒数。",
   optSame = "与目标相同的设置",
   tipSame = "焦点框的外观和行为与目标框相同。取消勾选可为它单独设置大小和规则。",
+  optLang = "语言",
+  tipLang = "插件文字的语言。“游戏语言”使用你游戏的语言。",
+  langAuto = "游戏语言",
 }
 
 T.zhTW = {
@@ -437,23 +462,62 @@ T.zhTW = {
   msgReset = "位置已重置。",
   warnBroken = "遊戲沒有如預期回應：秒數保持隱藏。",
   optFocus = "顯示專注目標的框",
-  tipFocus = "第二個框顯示你的專注目標的秒數。進入戰鬥會像第一個框一樣鎖定它。",
+  tipFocus = "第二個框顯示你的專注目標的秒數。治療：把首領設為專注目標，當你的目標是隊友時，它的秒數仍會留在畫面上。進入戰鬥會像第一個框一樣鎖定它。",
   hudFocus = "專注",
   help5 = "/lbf check - 最近幾場戰鬥中遊戲的回應（用於錯誤回報）",
   optTarget = "目標",
   noteTarget = "你當前目標的秒數。",
   optSame = "與目標相同的設定",
   tipSame = "專注框的外觀和行為與目標框相同。取消勾選可為它單獨設定大小和規則。",
+  optLang = "語言",
+  tipLang = "插件文字的語言。「遊戲語言」使用你遊戲的語言。",
+  langAuto = "遊戲語言",
 }
 
 T.esMX = T.esES
 
 ns.LOCALES = T
-local loc = GetLocale and GetLocale() or "enUS"
+
+-- the choice in the settings: same order and names as the game's own language list
+-- (CJK names carry a Latin hint: western clients have no CJK letters in their fonts)
+ns.LANGUAGES = {
+  { code = "enUS", name = "English" },
+  { code = "deDE", name = "Deutsch" },
+  { code = "esES", name = "Español (EU)" },
+  { code = "esMX", name = "Español (AL)" },
+  { code = "frFR", name = "Français" },
+  { code = "ruRU", name = "Русский" },
+  { code = "koKR", name = "한국어 (Korean)", short = "한국어" },
+  { code = "ptBR", name = "Português" },
+  { code = "zhTW", name = "繁體中文 (Chinese Trad.)", short = "繁體中文" },
+  { code = "zhCN", name = "简体中文 (Chinese Simpl.)", short = "简体中文" },
+}
+
+local ALIASES = { enGB = "enUS", ptPT = "ptBR" }
+local function Resolve(code)
+  code = ALIASES[code] or code
+  return T[code] and code or "enUS"
+end
+
+function ns.GameLanguage() return Resolve(GetLocale and GetLocale() or "enUS") end
+ns.lang = ns.GameLanguage()
+
+-- code: "auto" (the game's language) or one of ns.LANGUAGES
+function ns.SetLanguage(code)
+  if code == "auto" or not code then ns.lang = ns.GameLanguage() else ns.lang = Resolve(code) end
+end
+
+function ns.LanguageName(code, short)
+  for _, l in ipairs(ns.LANGUAGES) do
+    if l.code == code then return short and l.short or l.name end
+  end
+  return code
+end
+
 -- a text missing in a language falls back to English instead of showing nothing
 ns.L = setmetatable({}, { __index = function(_, k)
-  local t = T[loc] or T.enUS
-  local v = t[k]
+  local t = T[ns.lang]
+  local v = t and t[k]
   if v == nil then v = T.enUS[k] end
   return v
 end })

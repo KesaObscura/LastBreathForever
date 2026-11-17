@@ -138,6 +138,13 @@ function methods:SetChecked(v) self.checked = v and true or false end
 function methods:GetChecked() return self.checked end
 function methods:SetScale(s) self.scale = s end
 function methods:GetScale() return self.scale or 1 end
+function methods:SetWidth(w) self.w = w end
+function methods:GetWidth() return self.w or 100 end
+function methods:SetSize(w, h) self.w, self.h = w, h end
+function methods:SetHeight(h) self.h = h end
+function methods:GetHeight() return self.h or 0 end
+function methods:GetLeft() return M.lt and M.lt[1] end
+function methods:GetTop() return M.lt and M.lt[2] end
 function methods:GetCenter() return M.center and M.center[1], M.center and M.center[2] end
 function methods:SetPoint(...) self.point = { ... } end
 function methods:GetFrameLevel() return 1 end

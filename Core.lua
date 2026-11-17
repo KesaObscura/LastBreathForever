@@ -31,7 +31,8 @@ local DEFAULTS = {
   elite = false,   -- only elite, rare and boss targets
   focus = false,   -- a second frame for the focus
   focusSame = true, -- the focus frame uses the target frame's settings
-  shots = false,   -- test builds: screenshots while seconds are on screen (/lbf shots)
+  shots = false,   -- test builds: screenshots in boss fights (/lbf shots)
+  language = "auto", -- "auto" = the game's language, else one of ns.LANGUAGES
 }
 ns.DEFAULTS = DEFAULTS
 ns.LOOK = { "scale", "icon", "limit", "urgent", "elite" } -- what each frame can have of its own
@@ -102,7 +103,11 @@ local function InitDB()
     for _, k in ipairs(ns.LOOK) do db.f[k] = db[k] end
   end
   look(db.f)
-  for _, key in ipairs({ "point", "focusPoint" }) do
+  local known = db.language == "auto"
+  for _, l in ipairs(ns.LANGUAGES) do if l.code == db.language then known = true end end
+  if not known then db.language = "auto" end
+  ns.SetLanguage(db.language)
+  for _, key in ipairs({ "point", "focusPoint", "optPoint" }) do
     local p = db[key]
     if p ~= nil and (type(p) ~= "table" or type(p[1]) ~= "number" or type(p[2]) ~= "number") then db[key] = nil end
   end
@@ -335,6 +340,7 @@ local function Place(v)
   end
 end
 
+-- tipTitle and tipText are functions: the texts follow a change of language
 local function HudButton(parent, text, tipTitle, tipText)
   local b = CreateFrame("Button", nil, parent)
   b:SetSize(80, 20)
@@ -346,11 +352,16 @@ local function HudButton(parent, text, tipTitle, tipText)
   if fs and fs.GetStringWidth then b:SetWidth(math.max(80, math.ceil(fs:GetStringWidth() or 0) + 20)) end
   b:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(tipTitle, 1, 1, 1)
-    GameTooltip:AddLine(tipText, 0.82, 0.82, 0.82, true)
+    GameTooltip:SetText(tipTitle(), 1, 1, 1)
+    GameTooltip:AddLine(tipText(), 0.82, 0.82, 0.82, true)
     GameTooltip:Show()
   end)
   b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  function b:SetLabel(t)
+    self:SetText(t)
+    local f = self:GetFontString()
+    if f and f.GetStringWidth then self:SetWidth(math.max(80, math.ceil(f:GetStringWidth() or 0) + 20)) end
+  end
   return b
 end
 
@@ -484,6 +495,20 @@ function ns.ResetPosition()
   Print("%s", L.msgReset)
 end
 
+-- the texts on screen after a change of language
+function ns.OnLanguageChanged()
+  for _, v in ipairs(views) do
+    v.drag:SetText(v.unit == "target" and L.hudDrag or L.hudFocus)
+    for _, c in ipairs(v.cells) do
+      if c.tag then c.tag:SetText(L.hudFocus) end
+      -- the seconds are written anew on the next update, in the new language
+    end
+  end
+  lockBtn:SetLabel(L.optLock)
+  setBtn:SetLabel(L.hudSettings)
+  ns.Apply()
+end
+
 local function BuildAll()
   root = CreateFrame("Frame", nil, UIParent)
   root:SetSize(1, 1)
@@ -493,10 +518,10 @@ local function BuildAll()
   for i = 1, BOSSES do bossTracks[i] = NewTrack("boss" .. i) end
   local main = BuildView("target", "point", 140, L.hudDrag)
   BuildView("focus", "focusPoint", 100, L.hudFocus)
-  lockBtn = HudButton(main.hud, L.optLock, L.optLock, L.tipHudLock)
+  lockBtn = HudButton(main.hud, L.optLock, function() return L.optLock end, function() return L.tipHudLock end)
   lockBtn:SetPoint("TOPRIGHT", main.hud, "BOTTOM", -2, -4)
   lockBtn:SetScript("OnClick", function() ns.SetLocked(true) end)
-  setBtn = HudButton(main.hud, L.hudSettings, L.hudSettings, L.tipHudSettings)
+  setBtn = HudButton(main.hud, L.hudSettings, function() return L.hudSettings end, function() return L.tipHudSettings end)
   setBtn:SetPoint("TOPLEFT", main.hud, "BOTTOM", 2, -4)
   setBtn:SetScript("OnClick", function() if ns.ToggleOptions then ns.ToggleOptions(true) end end)
   ns.views, ns.hud, ns.cells = views, main.hud, main.cells
@@ -523,9 +548,9 @@ local function ShowBand(v, t, k, T, cfg)
   c.textN:SetText(text)
   c.textU:SetText(text)
   -- "Show from": hidden while more than the limit is left, and until the unit has lost
-  -- enough for an estimate (a full one: next to nothing; a hurt one: LOST below its band)
+  -- enough for an estimate (LOST below full, or below the band it was in at its first hit)
   local limit = cfg.limit > 0 and cfg.limit or CAP
-  local top = k == 1 and 0.995 or (b.lo - LOST)
+  local top = (k == 1 and 1 or b.lo) - LOST
   Band(limitCurve, math.min(ShareAt(limit, T, b.start), top), true)
   if not Opacity(c.frame, unit, limitCurve) then return false end
   -- "Last seconds in red": the red text below the mark, the white one above it
