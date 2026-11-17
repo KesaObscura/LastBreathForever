@@ -36,7 +36,6 @@ local DEFAULTS = {
   elite = false,   -- only elite, rare and boss targets
   focus = false,   -- a second frame for the focus
   focusSame = true, -- the focus frame uses the target frame's settings
-  shots = false,   -- test builds: screenshots in boss fights (/lbf shots)
   language = "auto", -- "auto" = the game's language, else one of ns.LANGUAGES
 }
 ns.DEFAULTS = DEFAULTS
@@ -71,11 +70,17 @@ local function Plain(f, ...)
   return v
 end
 
+-- where bugs go: named after help, after /lbf check and with the warning
+local BUG_URL = "https://github.com/KesaObscura/LastBreathForever/issues"
+ns.BUG_URL = BUG_URL
+local function BugLink() Print(L.bugReport, BUG_URL) end
+
 local warned
 local function Broken()
   if not warned then
     warned = true
     Print("%s", L.warnBroken)
+    BugLink()
   end
 end
 
@@ -733,18 +738,6 @@ local function ShowView(v, t, cfg)
   return true
 end
 
--- test builds: in a boss fight a screenshot every SHOT_EVERY seconds while the target's
--- seconds are worked out, for checking them against the fight afterwards (and for pictures); /lbf shots
-local SHOT_EVERY, SHOT_MAX = 10, 80
-local lastShot, shotCount = 0, 0
-local function MaybeShot()
-  if not db.shots or not encounter or shotCount >= SHOT_MAX or type(Screenshot) ~= "function" then return end
-  local now = GetTime()
-  if now - lastShot < SHOT_EVERY then return end
-  lastShot = now
-  if pcall(Screenshot) then shotCount = shotCount + 1 end
-end
-
 local function Update()
   for _, v in ipairs(views) do
     local t = nil
@@ -753,9 +746,7 @@ local function Update()
     local cfg = Cfg(v)
     if Counting(t, cfg) then
       if Ready(t) then
-        if ShowView(v, t, cfg) then
-          if v.unit == "target" then MaybeShot() end
-        else
+        if not ShowView(v, t, cfg) then
           HideCells(v)
           Broken()
           t = nil
@@ -887,14 +878,13 @@ SlashCmdList.LASTBREATHFOREVER = function(msg)
     if inCombat then Print("%s", L.msgLocked) else ns.SetLocked(false) end
   elseif msg == "reset" then
     ns.ResetPosition()
-  elseif msg == "shots" then
-    db.shots = not db.shots
-    Print("screenshots %s (boss fights only, every %d s, at most %d)", db.shots and "ON" or "off", SHOT_EVERY, SHOT_MAX)
   elseif msg == "check" then
     Print("v%s, %d lines:", ns.VERSION, #db.checks)
     for i = math.max(1, #db.checks - 7), #db.checks do DEFAULT_CHAT_FRAME:AddMessage(db.checks[i]) end
+    BugLink()
   elseif msg == "help" or msg == "?" then
     for _, k in ipairs({ "help1", "help2", "help3", "help4", "help5" }) do Print("%s", L[k]) end
+    BugLink()
   elseif ns.ToggleOptions then
     ns.ToggleOptions()
   end

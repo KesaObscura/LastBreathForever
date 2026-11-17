@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: Last Breath Forever
-## Notes: Shows about how many seconds your target has left, live in combat.
+## Notes: Time to die: shows about how many seconds your target has left, live in combat.
 ## Notes-deDE: Zeigt, wie viele Sekunden dein Ziel ungefähr noch lebt, live im Kampf.
 ## Notes-ruRU: Показывает, сколько примерно секунд осталось жить твоей цели, прямо в бою.
 ## Notes-esES: Muestra cuántos segundos le quedan más o menos a tu objetivo, en pleno combate.

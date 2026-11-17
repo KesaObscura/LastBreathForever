@@ -58,6 +58,7 @@ T.enUS = {
   langAuto = "Game language",
   fmtMss = "~%d:%d0",
   fmtMin = "~%d min",
+  bugReport = "Bug reports and ideas: %s",
 }
 
 T.deDE = {
@@ -112,6 +113,7 @@ T.deDE = {
   langAuto = "Spielsprache",
   fmtMss = "~%d:%d0",
   fmtMin = "~%d Min.",
+  bugReport = "Fehlerberichte und Ideen: %s",
 }
 
 T.ruRU = {
@@ -166,6 +168,7 @@ T.ruRU = {
   langAuto = "Язык игры",
   fmtMss = "~%d:%d0",
   fmtMin = "~%d мин",
+  bugReport = "Баги и идеи: %s",
 }
 
 T.esES = {
@@ -220,6 +223,7 @@ T.esES = {
   langAuto = "Idioma del juego",
   fmtMss = "~%d:%d0",
   fmtMin = "~%d min",
+  bugReport = "Errores e ideas: %s",
 }
 
 T.frFR = {
@@ -274,6 +278,7 @@ T.frFR = {
   langAuto = "Langue du jeu",
   fmtMss = "~%d:%d0",
   fmtMin = "~%d min",
+  bugReport = "Bugs et idées : %s",
 }
 
 T.ptBR = {
@@ -328,6 +333,7 @@ T.ptBR = {
   langAuto = "Idioma do jogo",
   fmtMss = "~%d:%d0",
   fmtMin = "~%d min",
+  bugReport = "Bugs e ideias: %s",
 }
 
 T.koKR = {
@@ -382,6 +388,7 @@ T.koKR = {
   langAuto = "게임 언어",
   fmtMss = "~%d:%d0",
   fmtMin = "~%d분",
+  bugReport = "버그 신고와 아이디어: %s",
 }
 
 T.zhCN = {
@@ -436,6 +443,7 @@ T.zhCN = {
   langAuto = "游戏语言",
   fmtMss = "~%d:%d0",
   fmtMin = "~%d 分钟",
+  bugReport = "错误报告与建议：%s",
 }
 
 T.zhTW = {
@@ -490,6 +498,7 @@ T.zhTW = {
   langAuto = "遊戲語言",
   fmtMss = "~%d:%d0",
   fmtMin = "~%d 分鐘",
+  bugReport = "錯誤回報與建議：%s",
 }
 
 T.esMX = T.esES

@@ -260,7 +260,8 @@ test("a client without the curve API: one warning, nothing shown, no error", fun
   local ns = fresh({ setup = function(m) m.noCurves = true end })
   fight(6, 0.05)
   assert(not shown(ns))
-  assert(#M.chat == 1, "one warning expected, got " .. #M.chat)
+  assert(#M.chat == 2, "one warning and the bug link expected, got " .. #M.chat)
+  assert(M.chat[2]:find("LastBreathForever/issues", 1, true))
 end)
 
 test("broken saved settings are replaced by the defaults", function()
@@ -461,25 +462,9 @@ test("/lbf check: one line per fight, no names, no secrets", function()
   assert(list[1]:find("same%[y=%d+ n=0 %?=0%]"), list[1])
   for _, l in ipairs(list) do assert(type(l) == "string" and not issecretvalue(l) and not l:find("boss\"")) end
   SlashCmdList.LASTBREATHFOREVER("check")
-  assert(#M.chat == 3)
+  assert(#M.chat == 4, "title, two lines, the bug link")
   for _ = 1, 40 do ns.CheckLine("x") end
   assert(#ns.db.checks == 30, "the list stays short")
-end)
-
-test("/lbf shots: screenshots only in boss fights, every 10 s", function()
-  local ns = fresh()
-  SlashCmdList.LASTBREATHFOREVER("shots")
-  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
-  for _ = 1, 3 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end
-  M.tick(25, 0.01)
-  assert(M.shots == 0, "no boss fight: no screenshot, got " .. M.shots)
-  M.fire("ENCOUNTER_START", 592)
-  M.tick(25, 0.01)
-  assert(M.shots == 3, "25 s of a boss fight: 3 screenshots, got " .. M.shots)
-  M.fire("ENCOUNTER_END", 592)
-  M.tick(25, 0.001)
-  assert(M.shots == 3, "after the boss: no more")
-  local _ = ns
 end)
 
 test("focus frame follows the target's settings until it gets its own", function()

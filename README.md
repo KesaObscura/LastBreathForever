@@ -1,33 +1,36 @@
 # Last Breath Forever – time to die addon for WoW Forever
 
-An addon for **World of Warcraft: Forever** (WoW Forever, "Classic+", client 1.60.1): see **about
-how many seconds your target has left** ("~12 s"; longer times as "~2:30" or "~12 min"), live in combat. Finish the long cast, switch
-targets or save the cooldown. Part of the Forever series with
-[Full Mana Forever](https://github.com/KesaObscura/FullManaForever).
+[![Release](https://img.shields.io/github/v/release/KesaObscura/LastBreathForever)](https://github.com/KesaObscura/LastBreathForever/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/KesaObscura/LastBreathForever)](LICENSE)
 
-**Status: test versions.** No release yet.
+**Download:** [latest release on GitHub](https://github.com/KesaObscura/LastBreathForever/releases/latest)
 
-## What it shows
+An addon for **World of Warcraft: Forever** (WoW Forever, "Classic+", client 1.60.1): **time to
+die** for your target. See **about how many seconds your target has left** ("~12 s", longer
+times as "~2:30" or "~12 min"), live in combat: finish the long cast, switch targets, or save the
+potion and the cooldown for the last seconds. Solo, in a group, in dungeons and on bosses. Part
+of the Forever series with [Full Mana Forever](https://github.com/KesaObscura/FullManaForever).
 
-- **About how many seconds your target has left** ("~12 s"), live in combat: solo, in a group, in
-  dungeons and on bosses. It is an estimate from how fast the target has been losing health in
-  this fight, so it is always "about", never exact.
-- The seconds appear after a few hits. Joined a fight late, or switched to a target that is
-  already hurt? They show for it too, a little later: once it has lost some more health.
-  No number is better than a wrong one.
-- In the open world a target you come back to in the same fight keeps its seconds.
-- **Also for the focus** (optional): a second frame with the seconds of your focus, with the
-  target frame's settings or its own. **Healers**: put the boss in your focus, and its seconds
-  stay on screen while an ally is your target.
-- The language of the addon follows your game, or choose one in the settings.
-- The seconds wait until the target has lost a few percent, in a group or on a boss also
-  about 10 s (the first seconds of a pull say too little). Meanwhile a dim icon shows that the
-  addon is counting.
-- **Show from**: only once about 30 s to 10 min or less are left, or always.
-- **Last seconds in red**: from 5 s up to a minute before the end (10 s by default), for cooldowns and trinkets you
-  keep for the finish. **Only elites and bosses**, size, icon, position.
-- 9 languages: English, Deutsch, Español (EU and AL), Français, Русский, 한국어, Português,
-  简体中文, 繁體中文. The addon follows your game language.
+## Time to die: what it shows
+
+- **About how many seconds your target has left**, worked out from how fast it has been losing
+  health in this fight. Always "about", never exact: when the damage changes a lot, the number
+  follows with a delay.
+- **No number is better than a wrong one.** The seconds appear once the target has lost a few
+  percent; in a group or on a boss also after about 10 s, because the first seconds of a pull say
+  too little. Meanwhile a dim icon shows that the addon is counting.
+- **Joined late?** A target that was already hurt gets its seconds too, a little later: once it
+  has lost some more health.
+- **Back to the same target** in the open world: its seconds are there at once.
+- **Last seconds in red**: from 5 s up to a minute before the end (10 s by default), for the
+  cooldowns, trinkets and potions you keep for the finish.
+- **Focus frame** (optional): a second frame with the seconds of your focus, with the target
+  frame's settings or its own. **Healers**: put the boss in your focus, and its seconds stay on
+  screen while an ally is your target.
+- **Show from**: only once about 30 s, 1, 2, 5 or 10 minutes or less are left, or always.
+- **Only elites and bosses**, size, icon, position: settings in two columns, target and focus.
+- **9 languages**: English, Deutsch, Español (EU and AL), Français, Русский, 한국어, Português,
+  简体中文, 繁體中文. The addon follows your game language, or choose one in the settings.
 
 ## Commands
 
@@ -43,5 +46,10 @@ targets or save the cooldown. Part of the Forever series with
 ## Install
 
 Unzip into `World of Warcraft/_forever_/Interface/AddOns/` (folder `LastBreathForever`).
+
+## Bug reports and ideas
+
+[Issues on GitHub](https://github.com/KesaObscura/LastBreathForever/issues). Please add the lines
+of `/lbf check`, your class and level, and what you expected.
 
 License: MIT.
