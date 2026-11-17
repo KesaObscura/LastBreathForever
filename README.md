@@ -1,9 +1,10 @@
 # Last Breath Forever – time to die addon for WoW Forever
 
 [![Release](https://img.shields.io/github/v/release/KesaObscura/LastBreathForever)](https://github.com/KesaObscura/LastBreathForever/releases/latest)
+[![CurseForge](https://img.shields.io/curseforge/dt/1812810?label=CurseForge)](https://www.curseforge.com/wow/addons/last-breath-forever)
 [![License: MIT](https://img.shields.io/github/license/KesaObscura/LastBreathForever)](LICENSE)
 
-**Download:** [latest release on GitHub](https://github.com/KesaObscura/LastBreathForever/releases/latest)
+**Download:** [CurseForge](https://www.curseforge.com/wow/addons/last-breath-forever) (CurseForge app) · [latest release on GitHub](https://github.com/KesaObscura/LastBreathForever/releases/latest)
 
 An addon for **World of Warcraft: Forever** (WoW Forever, "Classic+", client 1.60.1): **time to
 die** for your target. See **about how many seconds your target has left** ("~12 s", longer
@@ -45,7 +46,7 @@ of the Forever series with [Full Mana Forever](https://github.com/KesaObscura/Fu
 
 ## Install
 
-Unzip into `World of Warcraft/_forever_/Interface/AddOns/` (folder `LastBreathForever`).
+With the [CurseForge](https://www.curseforge.com/wow/addons/last-breath-forever) app, or unzip into `World of Warcraft/_forever_/Interface/AddOns/` (folder `LastBreathForever`).
 
 ## Bug reports and ideas
 
