@@ -290,7 +290,7 @@ test("settings: every control has a tooltip, also the greyed-out ones", function
   ns.ToggleOptions()
   local win = ns.optionsWindow
   assert(win and win:IsShown())
-  assert(#win.controls >= 15, "controls: " .. #win.controls)
+  assert(#win.controls == 27, "controls: " .. #win.controls)
   for i, c in ipairs(win.controls) do
     assert(c.scripts.OnEnter and c.tipTitle and c.tipText and c.tipText ~= "", "control " .. i .. " has no tooltip")
     c.scripts.OnEnter(c)
@@ -477,16 +477,66 @@ test("/lbf check: one line per fight, no names, no secrets", function()
   assert(#ns.db.checks == 30, "the list stays short")
 end)
 
-test("/lbf shots: screenshots only while seconds are worked out, every 10 s", function()
+test("/lbf shots: screenshots only in boss fights, every 10 s", function()
   local ns = fresh()
   SlashCmdList.LASTBREATHFOREVER("shots")
   M.combat = true M.fire("PLAYER_REGEN_DISABLED")
-  M.tick(15, 0)
-  assert(M.shots == 0, "no estimate: no screenshot")
   for _ = 1, 3 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end
   M.tick(25, 0.01)
-  assert(M.shots == 3, "about 27 s with an estimate: 3 screenshots, got " .. M.shots)
+  assert(M.shots == 0, "no boss fight: no screenshot, got " .. M.shots)
+  M.fire("ENCOUNTER_START", 592)
+  M.tick(25, 0.01)
+  assert(M.shots == 3, "25 s of a boss fight: 3 screenshots, got " .. M.shots)
+  M.fire("ENCOUNTER_END", 592)
+  M.tick(25, 0.001)
+  assert(M.shots == 3, "after the boss: no more")
   local _ = ns
+end)
+
+test("focus frame follows the target's settings until it gets its own", function()
+  local ns = fresh({ db = { focus = true, limit = 0, scale = 1.5 } })
+  local v2 = ns.views[2]
+  assert(ns.db.focusSame == true and ns.Cfg(v2) == ns.db, "same as the target by default")
+  assert(v2.hud:GetScale() == 1.5)
+  local f = boss()
+  M.focus = f
+  M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 5 do f.hp = f.hp - 0.01 M.hit(f) M.tick(1, 0) end       -- about 100 s left
+  assert(focusSeconds(ns), "target's rule 'always': shown")
+  ns.db.focusSame = false
+  ns.db.f.limit, ns.db.f.scale = 30, 0.8
+  ns.Apply()
+  M.tick(0.2, 0)
+  assert(not focusSeconds(ns), "its own rule '30 s': hidden at 100 s")
+  assert(v2.hud:GetScale() == 0.8 and ns.views[1].hud:GetScale() == 1.5, "each frame its own size")
+  assert(v2.cells[1].frame:GetScale() == 0.8, "the seconds take the frame's size")
+end)
+
+test("settings: the focus column is greyed out while it follows the target", function()
+  local ns = fresh()
+  ns.ToggleOptions()
+  local w = ns.optionsWindow.widgets
+  local c = ns.optionsWindow.controls
+  -- right column: its five rows are the last 11 controls before lock and reset
+  local n = #c
+  local focusRows = {}
+  for i = n - 12, n - 2 do focusRows[#focusRows + 1] = c[i] end
+  local function anyEnabled()
+    for _, x in ipairs(focusRows) do
+      if (x.kind == "Button" or x.kind == "CheckButton") and x:IsEnabled() then return true end
+    end
+  end
+  assert(not w.sameAs:IsEnabled(), "no focus frame: 'same settings' is greyed out")
+  assert(not anyEnabled(), "no focus frame: its rows are greyed out")
+  w.show.checked = true w.show.scripts.OnClick(w.show)
+  assert(ns.db.focus and w.sameAs:IsEnabled() and not anyEnabled(), "follows the target: rows greyed out")
+  w.sameAs.checked = false w.sameAs.scripts.OnClick(w.sameAs)
+  assert(anyEnabled(), "its own settings: rows can be used")
+  -- its size stepper changes only the focus frame
+  local plus = focusRows[2]
+  plus.scripts.OnClick(plus)
+  assert(ns.db.f.scale == 1.1 and ns.db.scale == 1)
 end)
 
 for _, t in ipairs(tests) do

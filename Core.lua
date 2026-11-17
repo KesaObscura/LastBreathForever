@@ -30,9 +30,11 @@ local DEFAULTS = {
   urgent = 5,      -- seconds: red from here down (0 = off)
   elite = false,   -- only elite, rare and boss targets
   focus = false,   -- a second frame for the focus
+  focusSame = true, -- the focus frame uses the target frame's settings
   shots = false,   -- test builds: screenshots while seconds are on screen (/lbf shots)
 }
 ns.DEFAULTS = DEFAULTS
+ns.LOOK = { "scale", "icon", "limit", "urgent", "elite" } -- what each frame can have of its own
 
 local db
 local function Print(fmt, ...)
@@ -85,9 +87,21 @@ local function InitDB()
   for k, v in pairs(DEFAULTS) do
     if type(db[k]) ~= type(v) then db[k] = v end
   end
-  if db.scale < 0.5 or db.scale > 3 then db.scale = DEFAULTS.scale end
-  if not InList(ns.LIMITS, db.limit) then db.limit = DEFAULTS.limit end
-  if not InList(ns.URGENTS, db.urgent) then db.urgent = DEFAULTS.urgent end
+  -- the look of a frame: the target's lies in db itself, the focus' own in db.f
+  local function look(t)
+    for _, k in ipairs(ns.LOOK) do
+      if type(t[k]) ~= type(DEFAULTS[k]) then t[k] = DEFAULTS[k] end
+    end
+    if t.scale < 0.5 or t.scale > 3 then t.scale = DEFAULTS.scale end
+    if not InList(ns.LIMITS, t.limit) then t.limit = DEFAULTS.limit end
+    if not InList(ns.URGENTS, t.urgent) then t.urgent = DEFAULTS.urgent end
+  end
+  look(db)
+  if type(db.f) ~= "table" then
+    db.f = {}
+    for _, k in ipairs(ns.LOOK) do db.f[k] = db[k] end
+  end
+  look(db.f)
   for _, key in ipairs({ "point", "focusPoint" }) do
     local p = db[key]
     if p ~= nil and (type(p) ~= "table" or type(p[1]) ~= "number" or type(p[2]) ~= "number") then db[key] = nil end
@@ -219,17 +233,17 @@ local function Hostile(unit)
 end
 
 local STRONG = { elite = true, rareelite = true, rare = true, worldboss = true }
-local function Wanted(unit)
-  if not db.elite then return true end
+local function Wanted(unit, cfg)
+  if not cfg.elite then return true end
   if STRONG[Plain(UnitClassification, unit) or ""] then return true end
   return Plain(UnitLevel, unit) == -1
 end
 
-local function Ready(t)
+local function Ready(t, cfg)
   if not t or not t.hit or t.hits < MIN_HITS then return false end
   if GetTime() - t.hit < MIN_TIME then return false end
   if Bool(UnitExists, t.unit) ~= true or Bool(UnitIsDeadOrGhost, t.unit) ~= false then return false end
-  return Wanted(t.unit)
+  return Wanted(t.unit, cfg)
 end
 
 -- the target's own track: found again by its id where the game tells units apart
@@ -300,16 +314,24 @@ local function BigFont(fs)
   end
 end
 
+-- the settings a frame goes by: the focus frame has its own or follows the target's
+local function Cfg(v)
+  if v.unit == "focus" and not db.focusSame then return db.f end
+  return db
+end
+ns.Cfg = Cfg
+
 local function Place(v)
   local hud = v.hud
-  hud:SetScale(db.scale)
+  local scale = Cfg(v).scale
+  hud:SetScale(scale)
   hud:ClearAllPoints()
   local p = db[v.pointKey]
   if p then
     -- the point is kept in screen units, so a new size leaves the frame where it is
-    hud:SetPoint("CENTER", UIParent, "BOTTOMLEFT", p[1] / db.scale, p[2] / db.scale)
+    hud:SetPoint("CENTER", UIParent, "BOTTOMLEFT", p[1] / scale, p[2] / scale)
   else
-    hud:SetPoint("CENTER", UIParent, "CENTER", 0, v.defaultY / db.scale)
+    hud:SetPoint("CENTER", UIParent, "CENTER", 0, v.defaultY / scale)
   end
 end
 
@@ -363,7 +385,8 @@ local function BuildView(unit, pointKey, defaultY, label)
     self:StopMovingOrSizing()
     local x, y = self:GetCenter()
     if x and y then
-      db[pointKey] = { x * db.scale, y * db.scale }
+      local scale = Cfg(v).scale
+      db[pointKey] = { x * scale, y * scale }
       Place(v)
     end
   end)
@@ -416,22 +439,27 @@ end
 local function Enabled(v) return v.unit == "target" or db.focus end
 
 function ns.Apply()
-  root:SetScale(db.scale)
   local unlocked = not db.locked
-  local point, x = "CENTER", 0
-  if db.icon then point, x = "LEFT", 34 end -- with the icon the seconds stand right of it
   for _, v in ipairs(views) do
+    local cfg = Cfg(v)
+    local point, x = "CENTER", 0
+    if cfg.icon then point, x = "LEFT", 34 end -- with the icon the seconds stand right of it
     Place(v)
     local on = Enabled(v)
     v.hud:SetShown(on)
     v.hud:EnableMouse(unlocked and on)
     v.plate:SetShown(unlocked and on)
-    v.sampleIcon:SetShown(db.icon)
+    v.sampleIcon:SetShown(cfg.icon)
     v.sample:ClearAllPoints()
     v.sample:SetPoint(point, v.hud, point, x, 0)
     v.sample:SetText(string.format(L.fmtSec, 12))
     for _, c in ipairs(v.cells) do
-      c.icon:SetShown(db.icon)
+      -- the seconds sit inside a track's frames, not inside the frame on screen: they get
+      -- the frame's size themselves
+      c.frame:SetScale(cfg.scale)
+      c.frame:ClearAllPoints()
+      c.frame:SetAllPoints(v.hud)
+      c.icon:SetShown(cfg.icon)
       c.textN:ClearAllPoints()
       c.textN:SetPoint(point, v.hud, point, x, 0)
       c.textU:ClearAllPoints()
@@ -479,7 +507,7 @@ end
 -- update
 ------------------------------------------------------------------------
 -- the seconds of one band of a view: text, "Show from", red or white
-local function ShowBand(v, t, k, T)
+local function ShowBand(v, t, k, T, cfg)
   local b, c, unit = BANDS[k], v.cells[k], t.unit
   ttdCurve:ClearPoints()
   ttdCurve:AddPoint(0, 0)
@@ -496,13 +524,13 @@ local function ShowBand(v, t, k, T)
   c.textU:SetText(text)
   -- "Show from": hidden while more than the limit is left, and until the unit has lost
   -- enough for an estimate (a full one: next to nothing; a hurt one: LOST below its band)
-  local limit = db.limit > 0 and db.limit or CAP
+  local limit = cfg.limit > 0 and cfg.limit or CAP
   local top = k == 1 and 0.995 or (b.lo - LOST)
   Band(limitCurve, math.min(ShareAt(limit, T, b.start), top), true)
   if not Opacity(c.frame, unit, limitCurve) then return false end
   -- "Last seconds in red": the red text below the mark, the white one above it
-  if db.urgent > 0 then
-    local share = ShareAt(db.urgent, T, b.start)
+  if cfg.urgent > 0 then
+    local share = ShareAt(cfg.urgent, T, b.start)
     Band(urgentCurve, share, true)
     Band(normalCurve, share, false)
     if not (Opacity(c.textU, unit, urgentCurve) and Opacity(c.textN, unit, normalCurve)) then return false end
@@ -513,14 +541,14 @@ local function ShowBand(v, t, k, T)
   return true
 end
 
-local function ShowView(v, t)
+local function ShowView(v, t, cfg)
   -- the first hit already took its share of health but no time: count one average gap
   -- between hits before it
   local start = t.hit - (t.lastHit - t.hit) / (t.hits - 1)
   local T = GetTime() - start
   t.asked = t.asked + 1
   for k = 1, #BANDS do
-    if not ShowBand(v, t, k, T) then
+    if not ShowBand(v, t, k, T, cfg) then
       t.failed = t.failed + 1
       return false
     end
@@ -528,12 +556,13 @@ local function ShowView(v, t)
   return true
 end
 
--- test builds: a screenshot every SHOT_EVERY seconds while the target's seconds are worked
--- out, for checking them against the fight afterwards (and for pictures); /lbf shots
+-- test builds: in a boss fight a screenshot every SHOT_EVERY seconds while the target's
+-- seconds are worked out, for checking them against the fight afterwards (and for pictures); /lbf shots
+local encounter -- the id of the running encounter, or nil
 local SHOT_EVERY, SHOT_MAX = 10, 80
 local lastShot, shotCount = 0, 0
 local function MaybeShot()
-  if not db.shots or shotCount >= SHOT_MAX or type(Screenshot) ~= "function" then return end
+  if not db.shots or not encounter or shotCount >= SHOT_MAX or type(Screenshot) ~= "function" then return end
   local now = GetTime()
   if now - lastShot < SHOT_EVERY then return end
   lastShot = now
@@ -545,7 +574,8 @@ local function Update()
     local t = nil
     if db.locked and Enabled(v) and Hostile(v.unit) then t = TrackFor(v.unit) end
     Attach(v, t)
-    if Ready(t) and ShowView(v, t) then
+    local cfg = Cfg(v)
+    if Ready(t, cfg) and ShowView(v, t, cfg) then
       for _, c in ipairs(v.cells) do c.frame:Show() end
       if v.unit == "target" then MaybeShot() end
     else
@@ -559,7 +589,6 @@ ns.Update = Update
 ------------------------------------------------------------------------
 -- what the game answered (for bug reports): /lbf check
 ------------------------------------------------------------------------
-local encounter -- the id of the running encounter, or nil
 local function Yn(v) if v == true then return "y" elseif v == false then return "n" end return "?" end
 
 local function CheckLine(why)
@@ -642,7 +671,7 @@ local function OnEvent(_, event, a1)
   elseif event == "PLAYER_FOCUS_CHANGED" then
     FocusChanged()
   elseif event == "ENCOUNTER_START" then
-    encounter = Plain(function() return a1 end)
+    encounter = Plain(function() return a1 end) or 0
     for _, t in ipairs(bossTracks) do Clear(t) end
   elseif event == "ENCOUNTER_END" then
     CheckLine("boss")
@@ -676,7 +705,7 @@ SlashCmdList.LASTBREATHFOREVER = function(msg)
     ns.ResetPosition()
   elseif msg == "shots" then
     db.shots = not db.shots
-    Print("screenshots %s (every %d s while seconds are worked out, at most %d)", db.shots and "ON" or "off", SHOT_EVERY, SHOT_MAX)
+    Print("screenshots %s (boss fights only, every %d s, at most %d)", db.shots and "ON" or "off", SHOT_EVERY, SHOT_MAX)
   elseif msg == "check" then
     Print("v%s, %d lines:", ns.VERSION, #db.checks)
     for i = math.max(1, #db.checks - 7), #db.checks do DEFAULT_CHAT_FRAME:AddMessage(db.checks[i]) end

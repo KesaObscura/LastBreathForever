@@ -18,7 +18,8 @@ targets or save the cooldown. Part of the Forever series with
 - In the open world a target you come back to in the same fight keeps its seconds.
 - **Bosses are followed all fight long**, also while you have someone else in your target (healers):
   take the boss into your target and its seconds are there at once.
-- **Also for the focus** (optional): a second frame with the seconds of your focus.
+- **Also for the focus** (optional): a second frame with the seconds of your focus, with the
+  target frame's settings or its own.
 - **Show from**: only once about 30 s to 10 min or less are left, or always.
 - **Last seconds in red**: from 3 s up to a minute before the end, for cooldowns and trinkets you
   keep for the finish. **Only elites and bosses**, size, icon, position.
