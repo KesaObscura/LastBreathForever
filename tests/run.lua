@@ -1,0 +1,684 @@
+-- Run from the addon folder: lua5.1 tests/run.lua
+local dir = arg[0]:match("^(.*)run%.lua$") or "./"
+local root = dir .. "../"
+local tests, failed = {}, 0
+local function test(name, fn) tests[#tests + 1] = { name = name, fn = fn } end
+
+local M
+local function fresh(opts)
+  LastBreathForeverDB = opts and opts.db or nil
+  M = dofile(dir .. "mock_wow.lua")
+  if opts and opts.setup then opts.setup(M) end
+  local ns = M.load(root)
+  M.fire("ADDON_LOADED", "LastBreathForever")
+  M.fire("PLAYER_ENTERING_WORLD")
+  return ns
+end
+-- the cell on screen (any of its texts visible); two at once would be a bug
+local function anyText(c)
+  for _, fs in ipairs({ c.textN, c.textU, c.textL, c.textM }) do
+    if M.visible(fs) then return fs end
+  end
+end
+local function cell(ns)
+  local found
+  for _, c in ipairs(ns.cells) do
+    if anyText(c) then
+      assert(not found, "two estimates on screen at once")
+      found = c
+    end
+  end
+  return found
+end
+-- the seconds on screen, whatever the form ("~12 s", "~2:30", "~12 min")
+local function seconds(ns)
+  local c = cell(ns)
+  local t = c and M.reveal(anyText(c):GetText())
+  if not t then return nil end
+  local m, d = t:match("^~(%d+):(%d)0$")
+  if m then return tonumber(m) * 60 + tonumber(d) * 10 end
+  local n = t:match("^~(%d+) min$")
+  if n then return tonumber(n) * 60 end
+  return tonumber(t:match("~(%d+)"))
+end
+local function shown(ns) return cell(ns) ~= nil end
+local function white(ns) local c = cell(ns) return c and not M.visible(c.textU) end
+local function red(ns) local c = cell(ns) return c and M.visible(c.textU) and not M.visible(c.textN) end
+local function near(a, b, tol, msg)
+  if not a or math.abs(a - b) > tol then error(string.format("%s: expected %s, got %s", msg or "", b, tostring(a)), 2) end
+end
+-- a fight: pull, then `hits` hits one second apart, losing `rate` of the health per second
+local function fight(n, rate)
+  M.combat = true
+  M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, n do
+    M.hp = M.hp - rate
+    M.hit()
+    M.tick(1, 0)
+  end
+end
+
+test("every text exists in all 9 languages with the same placeholders", function()
+  local ns = fresh()
+  local T = ns.LOCALES
+  local n = 0
+  for loc, t in pairs(T) do
+    n = n + 1
+    for k, en in pairs(T.enUS) do
+      local v = t[k]
+      assert(type(v) == "string" and v ~= "", loc .. " lacks " .. k)
+      local a, b = {}, {}
+      for p in en:gmatch("%%[%d%.]*[dsf]") do a[#a + 1] = p end
+      for p in v:gmatch("%%[%d%.]*[dsf]") do b[#b + 1] = p end
+      assert(table.concat(a, " ") == table.concat(b, " "), loc .. "." .. k .. ": placeholders differ")
+    end
+    for k in pairs(t) do assert(T.enUS[k], loc .. " has the unknown key " .. k) end
+  end
+  assert(n == 10, "9 languages and esMX expected, got " .. n)
+  assert(T.esMX == T.esES)
+end)
+
+test("the version in the TOC is the version in the code", function()
+  local ns = fresh()
+  local toc = io.open(root .. "LastBreathForever.toc"):read("*a")
+  assert(toc:match("## Version: ([%d%.]+)") == ns.VERSION)
+end)
+
+test("nothing shows before three hits and two seconds", function()
+  local ns = fresh()
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  M.tick(1, 0)
+  assert(not shown(ns), "no hit yet")
+  M.hp = 0.95 M.hit() M.tick(0.4, 0)
+  M.hp = 0.90 M.hit() M.tick(3, 0)
+  assert(not shown(ns), "two hits are not enough")
+  M.hp = 0.85 M.hit() M.tick(0.2, 0)
+  assert(shown(ns), "three hits, more than two seconds: show")
+end)
+
+test("the seconds are right for steady damage (5 % per second)", function()
+  local ns = fresh()
+  fight(8, 0.05)                 -- 60 % left, 12 more hits to go
+  M.now = M.now - 1 M.tick(0.2, 0)
+  near(seconds(ns), 12, 1, "seconds")
+  assert(shown(ns))
+end)
+
+test("a boss joined at 50 %: seconds show once it has lost enough, and they are about right", function()
+  local ns = fresh()
+  M.hp = 0.52
+  fight(3, 0.02)                                  -- 46 %: its band is 50-55 %, too little lost yet
+  assert(not shown(ns), "only a few percent lost since joining: nothing yet")
+  for _ = 1, 8 do M.hp = M.hp - 0.02 M.hit() M.tick(1, 0) end   -- 30 %, 2 % per second
+  M.now = M.now - 1 M.tick(0.2, 0)
+  assert(shown(ns), "22 % lost since joining: show")
+  near(seconds(ns), 15, 3, "30 % left at 2 % per second")
+end)
+
+test("joined at every share from 100 % to 20 %: one estimate, within a quarter at half way", function()
+  for start = 100, 21, -1 do
+    local ns = fresh()
+    M.hp = start / 100
+    local rate = M.hp / 40                        -- dies 40 s after joining
+    M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+    for _ = 1, 20 do M.hp = M.hp - rate M.hit() M.tick(1, 0) end
+    M.now = M.now - 1 M.tick(0.2, 0)
+    local sec = seconds(ns)
+    assert(sec, "joined at " .. start .. " %: nothing on screen at half way")
+    assert(math.abs(sec - 20) <= 5, "joined at " .. start .. " %: " .. sec .. " s shown, 20 s left")
+  end
+end)
+
+test("a target first hit below 20 % shows nothing", function()
+  local ns = fresh()
+  M.hp = 0.18
+  fight(6, 0.02)
+  assert(not shown(ns))
+end)
+
+test("a boss the group hit first (98 %) still shows", function()
+  local ns = fresh()
+  M.hp = 0.98
+  fight(6, 0.03)
+  assert(shown(ns))
+end)
+
+test("open world: a target met again in the same fight keeps its count", function()
+  local ns = fresh()
+  fight(6, 0.05)                                  -- mob-1 at 70 %
+  local hp1 = M.hp
+  M.target.guid, M.hp = "mob-2", 1
+  M.fire("PLAYER_TARGET_CHANGED")
+  M.tick(1, 0)
+  assert(not shown(ns), "new target: nothing yet")
+  M.target.guid, M.hp = "mob-1", hp1
+  M.fire("PLAYER_TARGET_CHANGED")
+  M.tick(0.2, 0)
+  assert(shown(ns), "back on the first target: its seconds are back at once")
+  near(seconds(ns), 7 * 0.7 / 0.3, 3, "seconds from the old count")
+end)
+
+test("dungeon: targets cannot be told apart, so a target met again starts anew", function()
+  local ns = fresh({ setup = function(m) m.secretGuid = true end })
+  fight(6, 0.05)
+  local hp1 = M.hp
+  M.hp = 1 M.fire("PLAYER_TARGET_CHANGED") M.tick(1, 0)
+  M.hp = hp1 M.fire("PLAYER_TARGET_CHANGED") M.tick(1, 0)
+  assert(not shown(ns))
+  for _ = 1, 3 do M.hit() M.tick(1, 0.005) end
+  assert(not shown(ns), "it starts anew at 70 %: nothing until it has lost enough again")
+end)
+
+test("after the fight everything is forgotten", function()
+  local ns = fresh()
+  fight(6, 0.05)
+  M.combat = false M.fire("PLAYER_REGEN_ENABLED")
+  M.tick(0.4, 0)
+  assert(not shown(ns))
+  for _, s in ipairs(ns.targetSlots) do assert(s.hits == 0 and s.hit == nil) end
+end)
+
+test("'Show from': hidden while more than the limit is left", function()
+  local ns = fresh({ db = { limit = 30 } })
+  fight(5, 0.01)                                  -- 95 % after 5 s: about 100 s left
+  assert(not shown(ns), "100 s left, limit 30 s")
+  M.tick(20, 0.04)                                -- 15 % left
+  assert(shown(ns), "a few seconds left")
+end)
+
+test("'Show from: Always' still hides a target that has lost next to nothing", function()
+  local ns = fresh({ db = { limit = 0 } })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  M.hp = 0.999
+  for _ = 1, 4 do M.hit() M.tick(1, 0) end
+  assert(not shown(ns))
+  M.hp = 0.9 M.tick(0.2, 0)
+  assert(shown(ns))
+end)
+
+test("'Last seconds in red': white above the mark, red below", function()
+  local ns = fresh({ db = { urgent = 5, limit = 0 } })
+  fight(8, 0.05)                                  -- about 12 s left
+  assert(white(ns), "white at 12 s")
+  M.tick(9, 0.05)                                 -- about 3 s left
+  assert(red(ns), "red at 3 s")
+  ns.db.urgent = 0
+  M.tick(0.2, 0)
+  assert(white(ns), "switched off: white")
+end)
+
+test("'Last seconds in red' goes up to 60 s (cooldowns kept for the end)", function()
+  local ns = fresh({ db = { urgent = 60, limit = 0 } })
+  assert(ns.db.urgent == 60, "60 is a valid choice")
+  fight(10, 0.006)                                -- 94 %: about 157 s left
+  assert(white(ns), "white at 157 s")
+  M.tick(30, 0.02)                                -- 35 % after 40 s: about 20 s left
+  assert(red(ns), "red below 60 s")
+end)
+
+test("'Only elites and bosses'", function()
+  local ns = fresh({ db = { elite = true } })
+  fight(6, 0.05)
+  assert(not shown(ns), "a normal mob")
+  M.target.class = "elite"
+  M.tick(0.2, 0)
+  assert(shown(ns), "an elite")
+end)
+
+test("friendly, dead or no target: nothing", function()
+  local ns = fresh()
+  fight(6, 0.05)
+  M.target.dead = true M.tick(0.2, 0)
+  assert(not shown(ns), "dead")
+  M.target.dead, M.target.hostile = false, false
+  M.fire("PLAYER_TARGET_CHANGED") M.tick(0.2, 0)
+  assert(not shown(ns), "friendly")
+end)
+
+test("misses and heals on the target do not count as hits", function()
+  local ns = fresh()
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _, a in ipairs({ "MISS", "HEAL", "DODGE", "WOUND", "MISS" }) do
+    M.fire("UNIT_COMBAT", "target", a) M.tick(1, 0.02)
+  end
+  assert(not shown(ns))
+  M.fire("UNIT_COMBAT", "target", M.secret("WOUND")) M.tick(1, 0)
+  assert(not shown(ns), "a secret action is not read")
+end)
+
+test("no secret is touched and no warning is printed in a whole fight", function()
+  local ns = fresh()
+  fight(8, 0.05)
+  M.tick(8, 0.05)
+  M.target.dead = true M.tick(0.4, 0)
+  M.combat = false M.fire("PLAYER_REGEN_ENABLED")
+  for _, m in ipairs(M.chat) do error("unexpected chat line: " .. m) end
+  local _ = ns
+end)
+
+test("a client without the curve API: one warning, nothing shown, no error", function()
+  local ns = fresh({ setup = function(m) m.noCurves = true end })
+  fight(6, 0.05)
+  assert(not shown(ns))
+  assert(#M.chat == 2, "one warning and the bug link expected, got " .. #M.chat)
+  assert(M.chat[2]:find("LastBreathForever/issues", 1, true))
+end)
+
+test("broken saved settings are replaced by the defaults", function()
+  local ns = fresh({ db = { scale = "big", limit = 77, urgent = -1, icon = 5, point = "x", shots = true } })
+  local d = ns.db
+  assert(d.scale == 1 and d.limit == 300 and d.urgent == 10 and d.icon == true and d.point == nil)
+  assert(d.shots == nil, "the old test switch is dropped")
+end)
+
+test("unlocked: a sample shows, a fight locks the frame again", function()
+  local ns = fresh()
+  SlashCmdList.LASTBREATHFOREVER("unlock")
+  assert(ns.db.locked == false)
+  M.hp = 0.5 M.hit() M.hit() M.hit() M.tick(3, 0)
+  assert(not shown(ns), "the real seconds are hidden while unlocked")
+  M.hp = 1
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  assert(ns.db.locked == true, "auto-lock at the pull")
+  SlashCmdList.LASTBREATHFOREVER("unlock")
+  assert(ns.db.locked == true, "no unlocking in a fight")
+end)
+
+test("dragging keeps the place when the size changes", function()
+  local ns = fresh()
+  ns.db.scale = 2
+  ns.Apply()
+  M.center = { 300, 200 }                          -- in the frame's own (doubled) units
+  ns.hud.scripts.OnDragStop(ns.hud)
+  assert(ns.db.point[1] == 600 and ns.db.point[2] == 400, "kept in screen units")
+  ns.db.scale = 1
+  ns.Apply()
+  assert(ns.hud.point[4] == 600 and ns.hud.point[5] == 400)
+  SlashCmdList.LASTBREATHFOREVER("reset")
+  assert(ns.db.point == nil)
+end)
+
+test("settings: every control has a tooltip, also the greyed-out ones", function()
+  local ns = fresh()
+  ns.ToggleOptions()
+  local win = ns.optionsWindow
+  assert(win and win:IsShown())
+  assert(#win.controls == 29, "controls: " .. #win.controls)
+  for i, c in ipairs(win.controls) do
+    assert(c.scripts.OnEnter and c.tipTitle and c.tipText and c.tipText ~= "", "control " .. i .. " has no tooltip")
+    c.scripts.OnEnter(c)
+    assert(#GameTooltip.lines == 2)
+    if c.kind == "Button" or c.kind == "CheckButton" then
+      assert(c.motionWhileDisabled, "control " .. i .. ": no tooltip while greyed out")
+    end
+  end
+  ns.ToggleOptions()
+  assert(not win:IsShown())
+end)
+
+test("settings: steppers walk their lists and stop at the ends", function()
+  local ns = fresh()
+  ns.ToggleOptions()
+  local c = ns.optionsWindow.controls
+  -- 2/3 size, 5/6 limit, 8/9 urgent (minus, plus)
+  for _ = 1, 10 do c[6].scripts.OnClick(c[6]) end
+  assert(ns.db.limit == 600 and not c[6]:IsEnabled())
+  for _ = 1, 10 do c[5].scripts.OnClick(c[5]) end
+  assert(ns.db.limit == 0 and not c[5]:IsEnabled())
+  for _ = 1, 40 do c[3].scripts.OnClick(c[3]) end
+  assert(ns.db.scale == 3 and ns.hud:GetScale() == 3)
+  for _ = 1, 40 do c[2].scripts.OnClick(c[2]) end
+  assert(ns.db.scale == 0.5)
+  for _ = 1, 9 do c[8].scripts.OnClick(c[8]) end
+  assert(ns.db.urgent == 0)
+  c[9].scripts.OnClick(c[9])
+  assert(ns.db.urgent == 5, "no 3 s step any more")
+  for _ = 1, 9 do c[9].scripts.OnClick(c[9]) end
+  assert(ns.db.urgent == 60)
+end)
+
+test("the addon menu at the minimap opens the settings and has a tooltip", function()
+  local ns = fresh()
+  LastBreathForever_OnCompartmentEnter(nil, UIParent)
+  assert(#GameTooltip.lines == 2 and GameTooltip.lines[1]:find("Last Breath Forever v" .. ns.VERSION, 1, true))
+  LastBreathForever_OnCompartmentClick()
+  assert(ns.optionsWindow:IsShown())
+end)
+
+test("it works in every language (seconds text keeps its number)", function()
+  for _, loc in ipairs({ "deDE", "ruRU", "esES", "esMX", "frFR", "ptBR", "koKR", "zhCN", "zhTW" }) do
+    local ns = fresh({ setup = function(m) m.locale = loc end })
+    fight(8, 0.05)
+    M.now = M.now - 1 M.tick(0.2, 0)
+    near(seconds(ns), 12, 1, loc)
+    ns.ToggleOptions()
+  end
+end)
+
+-- the cell of the focus frame that is on screen
+local function focusSeconds(ns)
+  for _, c in ipairs(ns.views[2].cells) do
+    local fs = anyText(c)
+    if fs then
+      local t = M.reveal(fs:GetText())
+      local m, d = t:match("^~(%d+):(%d)0$")
+      if m then return tonumber(m) * 60 + tonumber(d) * 10 end
+      return tonumber(t:match("~(%d+)"))
+    end
+  end
+end
+local ALLY = { exists = true, hostile = false, guid = "ally" }
+local function boss() return { exists = true, hostile = true, guid = "boss", class = "elite", level = 30, hp = 1 } end
+
+test("the game does not say whether target and boss are the same: the target still works", function()
+  local ns = fresh({ setup = function(m) m.secretSame = true end })
+  local b = boss()
+  M.bosses[1] = b
+  M.target, M.hp = b, 1
+  M.fire("ENCOUNTER_START", 592)
+  M.fire("PLAYER_TARGET_CHANGED")
+  fight(8, 0.05)
+  M.now = M.now - 1 M.tick(0.2, 0)
+  near(seconds(ns), 12, 1, "from the target's own count")
+  assert(#M.chat == 0)
+end)
+
+test("focus frame: off by default; on: the focus' seconds while something else is the target", function()
+  local ns = fresh()
+  local f = boss()
+  M.focus = f
+  M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 10 do f.hp = f.hp - 0.04 M.hit(f) M.tick(1, 0) end     -- 60 % after 10 s
+  assert(not focusSeconds(ns), "switched off: no second frame")
+  assert(not M.visible(ns.views[2].hud))
+  ns.db.focus = true
+  ns.Apply()
+  M.tick(0.2, 0)
+  near(focusSeconds(ns), 15, 2, "focus: 60 % left at 4 % per second")
+  assert(not shown(ns), "the target (a fresh mob) shows nothing yet")
+end)
+
+test("target and focus are the same mob: both frames show the same seconds, from the longer count", function()
+  local ns = fresh({ db = { focus = true } })
+  local f = boss()
+  M.focus = f
+  M.fire("PLAYER_FOCUS_CHANGED")
+  M.target = ALLY
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  M.fire("PLAYER_TARGET_CHANGED")
+  for _ = 1, 10 do f.hp = f.hp - 0.04 M.hit(f) M.tick(1, 0) end
+  M.target, M.hp = f, f.hp
+  M.fire("PLAYER_TARGET_CHANGED")
+  M.tick(0.2, 0)
+  assert(shown(ns), "the focus becomes the target: seconds at once, not after three new hits")
+  assert(seconds(ns) == focusSeconds(ns), "both frames agree")
+  -- and it stays one count: hits are not doubled
+  local hits = ns.focusTrack.hits
+  M.hit(f)
+  assert(ns.focusTrack.hits == hits + 1)
+end)
+
+test("a new focus starts anew", function()
+  local ns = fresh({ db = { focus = true } })
+  local f = boss()
+  M.focus = f
+  M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 10 do f.hp = f.hp - 0.04 M.hit(f) M.tick(1, 0) end
+  assert(focusSeconds(ns))
+  M.focus = boss()
+  M.fire("PLAYER_FOCUS_CHANGED")
+  M.tick(0.4, 0)
+  assert(not focusSeconds(ns))
+end)
+
+test("unlocked with the focus frame: two plates, each keeps its own place", function()
+  local ns = fresh({ db = { focus = true } })
+  SlashCmdList.LASTBREATHFOREVER("unlock")
+  local v1, v2 = ns.views[1], ns.views[2]
+  assert(M.visible(v1.plate) and M.visible(v2.plate))
+  M.center = { 500, 300 }
+  v2.hud.scripts.OnDragStop(v2.hud)
+  assert(ns.db.focusPoint[1] == 500 and ns.db.point == nil)
+  ns.db.focus = false
+  ns.Apply()
+  assert(not M.visible(v2.plate), "switched off: no second plate")
+end)
+
+test("/lbf check: one line per fight, no names, no secrets", function()
+  local ns = fresh()
+  local b = boss()
+  M.bosses[1] = b
+  M.target, M.hp = b, 1
+  M.fire("ENCOUNTER_START", 592)
+  M.fire("PLAYER_TARGET_CHANGED")
+  fight(8, 0.05)
+  M.fire("ENCOUNTER_END", 592)
+  M.combat = false M.fire("PLAYER_REGEN_ENABLED")
+  local list = ns.db.checks
+  assert(#list == 2, "boss line and fight line, got " .. #list)
+  assert(list[1]:find("boss enc=592", 1, true) and list[1]:find("target[hits=8", 1, true), list[1])
+  assert(list[1]:find("fighting%[y=%d+ n=%d+ %?=0%]"), list[1])
+  assert(list[1]:find("same%[y=%d+ n=0 %?=0%]"), list[1])
+  for _, l in ipairs(list) do assert(type(l) == "string" and not issecretvalue(l) and not l:find("boss\"")) end
+  SlashCmdList.LASTBREATHFOREVER("check")
+  assert(#M.chat == 4, "title, two lines, the bug link")
+  for _ = 1, 40 do ns.CheckLine("x") end
+  assert(#ns.db.checks == 30, "the list stays short")
+end)
+
+test("focus frame follows the target's settings until it gets its own", function()
+  local ns = fresh({ db = { focus = true, limit = 0, scale = 1.5 } })
+  local v2 = ns.views[2]
+  assert(ns.db.focusSame == true and ns.Cfg(v2) == ns.db, "same as the target by default")
+  assert(v2.hud:GetScale() == 1.5)
+  local f = boss()
+  M.focus = f
+  M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 5 do f.hp = f.hp - 0.012 M.hit(f) M.tick(1, 0) end      -- about 80 s left
+  assert(focusSeconds(ns), "target's rule 'always': shown")
+  ns.db.focusSame = false
+  ns.db.f.limit, ns.db.f.scale = 30, 0.8
+  ns.Apply()
+  M.tick(0.2, 0)
+  assert(not focusSeconds(ns), "its own rule '30 s': hidden at 80 s")
+  assert(v2.hud:GetScale() == 0.8 and ns.views[1].hud:GetScale() == 1.5, "each frame its own size")
+  assert(v2.cells[1].frame:GetScale() == 0.8, "the seconds take the frame's size")
+end)
+
+test("settings: the focus column is greyed out while it follows the target", function()
+  local ns = fresh()
+  ns.ToggleOptions()
+  local w = ns.optionsWindow.widgets
+  local focusRows = w.rightRows
+  local function anyEnabled()
+    for _, x in ipairs(focusRows) do
+      if (x.kind == "Button" or x.kind == "CheckButton") and x:IsEnabled() then return true end
+    end
+  end
+  assert(not w.sameAs:IsEnabled(), "no focus frame: 'same settings' is greyed out")
+  assert(not anyEnabled(), "no focus frame: its rows are greyed out")
+  w.show.checked = true w.show.scripts.OnClick(w.show)
+  assert(ns.db.focus and w.sameAs:IsEnabled() and not anyEnabled(), "follows the target: rows greyed out")
+  w.sameAs.checked = false w.sameAs.scripts.OnClick(w.sameAs)
+  assert(anyEnabled(), "its own settings: rows can be used")
+  -- its size stepper changes only the focus frame
+  local plus = focusRows[2]
+  plus.scripts.OnClick(plus)
+  assert(ns.db.f.scale == 1.1 and ns.db.scale == 1)
+end)
+
+test("no estimate until the target has lost 5 % (the first seconds are too unsure)", function()
+  local ns = fresh({ db = { limit = 0 } })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 6 do M.hp = M.hp - 0.007 M.hit() M.tick(1, 0) end   -- 95.8 %
+  assert(not shown(ns), "4 % lost: nothing")
+  M.hp = 0.94 M.tick(0.2, 0)
+  assert(shown(ns), "6 % lost: shown")
+end)
+
+test("language: chosen in the settings, the window and the frames switch at once", function()
+  local ns = fresh()
+  ns.ToggleOptions()
+  local w = ns.optionsWindow.widgets
+  assert(M.reveal(w.lang:GetText()) == "Game language")
+  w.lang.Select("ruRU")
+  assert(ns.db.language == "ruRU")
+  local win = ns.optionsWindow
+  assert(win:IsShown(), "the window stays open, built anew")
+  assert(win.widgets.lang:GetText() == "Русский")
+  assert(win.widgets.lock:GetText() == "Разблокировать")
+  assert(ns.views[1].drag:GetText() == "Перетащи меня")
+  ns.views[1].hud.scripts.OnDragStop(ns.views[1].hud) -- nothing breaks with the new texts
+  win.widgets.lang.Select("auto")
+  assert(ns.db.language == "auto" and ns.optionsWindow.widgets.lock:GetText() == "Unlock")
+  -- the choice is kept: the next login starts in it
+  ns.db.language = "deDE"
+  local db = ns.db
+  local ns2 = fresh({ db = db })
+  ns2.ToggleOptions()
+  assert(ns2.optionsWindow.widgets.lock:GetText() == "Entsperren")
+  local ns3 = fresh({ db = { language = "xxXX" } })
+  assert(ns3.db.language == "auto", "an unknown language falls back to the game's")
+end)
+
+test("the settings window keeps its place", function()
+  local ns = fresh()
+  ns.ToggleOptions()
+  M.lt = { 300, 700 }
+  ns.optionsWindow.scripts.OnDragStop(ns.optionsWindow)
+  assert(ns.db.optPoint[1] == 300 and ns.db.optPoint[2] == 700)
+  local ns2 = fresh({ db = ns.db })
+  ns2.ToggleOptions()
+  local p = ns2.optionsWindow.point
+  assert(p[1] == "TOPLEFT" and p[4] == 300 and p[5] == 700, "opens where it was left")
+end)
+
+test("unlocked: the words and buttons around the frame keep their size at any frame size", function()
+  local ns = fresh({ db = { scale = 0.5 } })
+  SlashCmdList.LASTBREATHFOREVER("unlock")
+  local v = ns.views[1]
+  assert(v.hud:GetScale() == 0.5)
+  assert(v.chrome.parent == UIParent and v.chrome:GetScale() == 1, "not scaled with the frame")
+  assert(M.visible(v.drag) and v.drag.parent == v.chrome)
+  local edges = 0
+  for _, f in ipairs(M.frames) do
+    if f.kind == "Texture" and f.parent == v.chrome then edges = edges + 1 end
+  end
+  assert(edges == 4, "the outline is drawn at full size, got " .. edges)
+  SlashCmdList.LASTBREATHFOREVER("lock")
+  assert(not M.visible(v.drag), "gone when locked")
+end)
+
+local function waiting(ns)
+  for _, c in ipairs(ns.cells) do
+    if M.visible(c.waitIcon) or M.visible(c.waitText) then return true end
+  end
+  return false
+end
+
+test("while counting without a number: a dim icon, then the number", function()
+  local ns = fresh({ db = { limit = 0 } })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  M.tick(1, 0)
+  assert(not waiting(ns) and not shown(ns), "no hit yet: nothing")
+  M.hp = 0.99 M.hit() M.tick(0.4, 0)
+  assert(waiting(ns) and not shown(ns), "first hit: the dim icon")
+  M.hp = 0.98 M.hit() M.tick(1, 0)
+  M.hp = 0.97 M.hit() M.tick(1.4, 0)
+  assert(waiting(ns) and not shown(ns), "3 % lost: still the dim icon")
+  M.hp = 0.94 M.tick(0.2, 0)
+  assert(shown(ns) and not waiting(ns), "6 % lost: the number, no dim icon")
+  ns.db.icon = false ns.Apply()
+  M.target.dead = true M.tick(0.2, 0)
+  assert(not waiting(ns) and not shown(ns), "dead: nothing")
+end)
+
+test("group: the number waits for 10 s and 3 %, or 20 % lost", function()
+  local ns = fresh({ db = { limit = 0 }, setup = function(m) m.group = 5 end })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 6 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end     -- 94 % after 6 s
+  assert(not shown(ns) and waiting(ns), "group, 6 % lost after 6 s: wait")
+  for _ = 1, 5 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end     -- 89 % after 11 s
+  assert(shown(ns), "after 10 s and 3 %: shown")
+  near(seconds(ns), 89, 12, "1 % per second")
+  -- a quick boss: 20 % in 5 s shows at once
+  local ns2 = fresh({ db = { limit = 0 }, setup = function(m) m.group = 5 end })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 5 do M.hp = M.hp - 0.045 M.hit() M.tick(1, 0) end    -- 77.5 % after 5 s
+  assert(shown(ns2), "22.5 % lost: shown before 10 s")
+end)
+
+test("a target already fighting at 91 % is not taken for full (no halved number)", function()
+  local ns = fresh({ db = { limit = 0 } })
+  -- a new mob, already in the fight (the tank's AoE took it to 91 %)
+  M.target = { exists = true, hostile = true, guid = "mob-2", fighting = true }
+  M.hp = 0.91
+  M.fire("PLAYER_TARGET_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 10 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end    -- 81 %, 1 % per second
+  M.now = M.now - 1 M.tick(0.2, 0)
+  near(seconds(ns), 81, 12, "about 81 s left (taken for full: about 40)")
+end)
+
+test("a target taken out of combat counts as full; the game not saying: narrow bands, still right", function()
+  local ns = fresh({ db = { limit = 0 } })
+  fight(10, 0.01)                                                 -- 90 %
+  M.now = M.now - 1 M.tick(0.2, 0)
+  near(seconds(ns), 90, 6, "full")
+  local ns2 = fresh({ db = { limit = 0 }, setup = function(m) m.noCombatInfo = true end })
+  fight(10, 0.01)
+  M.now = M.now - 1 M.tick(0.2, 0)
+  near(seconds(ns2), 99, 15, "the game did not say: from the 97.5-100 % band, about 12 % high")
+end)
+
+-- the text on screen, whichever of the three forms it is in
+local function text(ns)
+  for _, c in ipairs(ns.cells) do
+    for _, fs in ipairs({ c.textN, c.textU, c.textL, c.textM }) do
+      if M.visible(fs) then return M.reveal(fs:GetText()) end
+    end
+  end
+end
+
+test("long times read as minutes: ~2:30 above 90 s, ~12 min above 10 min", function()
+  local ns = fresh({ db = { limit = 0 } })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  -- 0.25 % per second: from 90 % after 40 s, 360 s are left
+  for _ = 1, 40 do M.hp = M.hp - 0.0025 M.hit() M.tick(1, 0) end
+  M.tick(1.2, 0)
+  local t = text(ns)
+  assert(t and t:match("^~%d:%d0$"), "m:ss expected, got " .. tostring(t))
+  local m, d = t:match("^~(%d):(%d)0$")
+  near(tonumber(m) * 60 + tonumber(d) * 10, 360, 45, "about 6 minutes")
+  -- slower: 6 % in 60 s, about 15-16 minutes left
+  local ns2 = fresh({ db = { limit = 0 } })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 60 do M.hp = M.hp - 0.001 M.hit() M.tick(1, 0) end
+  M.tick(1.2, 0)
+  local t2 = text(ns2)
+  assert(t2 and t2:match("^~%d+ min$"), "minutes expected, got " .. tostring(t2))
+  near(tonumber(t2:match("%d+")), 16, 2, "about 16 minutes")
+  -- and below 90 s plain seconds again
+  local ns3 = fresh({ db = { limit = 0 } })
+  fight(8, 0.05)
+  M.now = M.now - 1 M.tick(0.2, 0)
+  assert(text(ns3):match("^~%d+ s$"), text(ns3))
+end)
+
+test("'Show from' 1 min: never minutes", function()
+  local ns = fresh({ db = { limit = 60 } })
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 40 do M.hp = M.hp - 0.0025 M.hit() M.tick(1, 0) end
+  M.tick(1.2, 0)
+  assert(text(ns) == nil, "6 min left, shown from 1 min: nothing")
+end)
+
+for _, t in ipairs(tests) do
+  local ok, err = pcall(t.fn)
+  if ok then io.write("ok   ", t.name, "\n") else failed = failed + 1 io.write("FAIL ", t.name, "\n     ", tostring(err), "\n") end
+end
+io.write(string.format("\n%d tests, %d failed\n", #tests, failed))
+os.exit(failed == 0 and 0 or 1)
