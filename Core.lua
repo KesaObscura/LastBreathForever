@@ -3,7 +3,7 @@
 -- The game works the seconds out itself and hands back a value that can only be shown.
 
 local ADDON, ns = ...
-ns.VERSION = "0.1.0"
+ns.VERSION = "0.1.1"
 local L = ns.L
 local Skin = ns.Skin
 

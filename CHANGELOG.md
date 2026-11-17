@@ -1,3 +1,7 @@
+**Last Breath Forever 0.1.1**
+
+- The icon now matches the other addons of the Forever series: the same circle, glow and infinity sign.
+
 **Last Breath Forever 0.1.0**
 
 First release: time to die for WoW Forever.

@@ -1,15 +1,22 @@
 # Last Breath Forever – time to die addon for WoW Forever
 
 [![Release](https://img.shields.io/github/v/release/KesaObscura/LastBreathForever)](https://github.com/KesaObscura/LastBreathForever/releases/latest)
+[![CurseForge](https://img.shields.io/curseforge/dt/1812810?label=CurseForge)](https://www.curseforge.com/wow/addons/last-breath-forever)
 [![License: MIT](https://img.shields.io/github/license/KesaObscura/LastBreathForever)](LICENSE)
 
-**Download:** [latest release on GitHub](https://github.com/KesaObscura/LastBreathForever/releases/latest)
+**Download:** [CurseForge](https://www.curseforge.com/wow/addons/last-breath-forever) (CurseForge app) · [latest release on GitHub](https://github.com/KesaObscura/LastBreathForever/releases/latest)
 
 An addon for **World of Warcraft: Forever** (WoW Forever, "Classic+", client 1.60.1): **time to
 die** for your target. See **about how many seconds your target has left** ("~12 s", longer
 times as "~2:30" or "~12 min"), live in combat: finish the long cast, switch targets, or save the
 potion and the cooldown for the last seconds. Solo, in a group, in dungeons and on bosses. Part
 of the Forever series with [Full Mana Forever](https://github.com/KesaObscura/FullManaForever).
+
+![Time to die: about how many seconds your target has left, next to its frame](docs/images/time-to-die-live-in-combat.png)
+
+| The last seconds in red, the focus too | Settings for the target and the focus |
+|---|---|
+| ![The last seconds in red; a second frame for the focus](docs/images/last-seconds-red-focus-frame.png) | ![The settings window: target and focus in two columns](docs/images/settings-target-focus.png) |
 
 ## Time to die: what it shows
 
@@ -45,7 +52,7 @@ of the Forever series with [Full Mana Forever](https://github.com/KesaObscura/Fu
 
 ## Install
 
-Unzip into `World of Warcraft/_forever_/Interface/AddOns/` (folder `LastBreathForever`).
+With the [CurseForge](https://www.curseforge.com/wow/addons/last-breath-forever) app, or unzip into `World of Warcraft/_forever_/Interface/AddOns/` (folder `LastBreathForever`).
 
 ## Bug reports and ideas
 
