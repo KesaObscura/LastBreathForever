@@ -588,6 +588,11 @@ test("unlocked: the words and buttons around the frame keep their size at any fr
   assert(v.hud:GetScale() == 0.5)
   assert(v.chrome.parent == UIParent and v.chrome:GetScale() == 1, "not scaled with the frame")
   assert(M.visible(v.drag) and v.drag.parent == v.chrome)
+  local edges = 0
+  for _, f in ipairs(M.frames) do
+    if f.kind == "Texture" and f.parent == v.chrome then edges = edges + 1 end
+  end
+  assert(edges == 4, "the outline is drawn at full size, got " .. edges)
   SlashCmdList.LASTBREATHFOREVER("lock")
   assert(not M.visible(v.drag), "gone when locked")
 end)

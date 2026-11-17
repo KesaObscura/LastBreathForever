@@ -407,11 +407,16 @@ local function BuildView(unit, pointKey, defaultY, label)
   local bg = v.plate:CreateTexture(nil, "BACKGROUND")
   bg:SetAllPoints()
   bg:SetColorTexture(Skin.BG[1], Skin.BG[2], Skin.BG[3], 0.85)
-  Skin.Edge(v.plate, Skin.ACCENT, 0.9)
   -- the words and buttons around the unlocked frame keep their size whatever the frame's size:
   -- at 50 % they were too small to read or click
   v.chrome = CreateFrame("Frame", nil, UIParent)
   v.chrome:SetAllPoints(hud)
+  -- the outline too: a 1 px line inside a frame at 50-90 % got thinner than a pixel and was
+  -- drawn uneven or not at all
+  for _, t in ipairs(Skin.Edge(v.chrome, Skin.ACCENT, 0.9)) do
+    if t.SetSnapToPixelGrid then pcall(t.SetSnapToPixelGrid, t, true) end
+    if t.SetTexelSnappingBias then pcall(t.SetTexelSnappingBias, t, 0) end
+  end
   v.drag = v.chrome:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   v.drag:SetPoint("BOTTOM", hud, "TOP", 0, 4)
   v.drag:SetText(label)
