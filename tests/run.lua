@@ -265,9 +265,10 @@ test("a client without the curve API: one warning, nothing shown, no error", fun
 end)
 
 test("broken saved settings are replaced by the defaults", function()
-  local ns = fresh({ db = { scale = "big", limit = 77, urgent = -1, icon = 5, point = "x" } })
+  local ns = fresh({ db = { scale = "big", limit = 77, urgent = -1, icon = 5, point = "x", shots = true } })
   local d = ns.db
   assert(d.scale == 1 and d.limit == 300 and d.urgent == 10 and d.icon == true and d.point == nil)
+  assert(d.shots == nil, "the old test switch is dropped")
 end)
 
 test("unlocked: a sample shows, a fight locks the frame again", function()

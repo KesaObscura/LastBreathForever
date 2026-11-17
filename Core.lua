@@ -122,6 +122,7 @@ local function InitDB()
     if p ~= nil and (type(p) ~= "table" or type(p[1]) ~= "number" or type(p[2]) ~= "number") then db[key] = nil end
   end
   if type(db.checks) ~= "table" then db.checks = {} end
+  db.shots = nil -- a switch of the test builds
   ns.db = db
 end
 
@@ -489,11 +490,11 @@ local function BuildView(unit, pointKey, defaultY, label)
     c.waitIcon:SetSize(26, 26)
     c.waitIcon:SetPoint("LEFT", hud, "LEFT", 3, 0)
     c.waitIcon:SetTexture(Skin.LOGO)
-    c.waitIcon:SetAlpha(0.4)
+    c.waitIcon:SetAlpha(0.55)
     c.waitText = c.wait:CreateFontString(nil, "OVERLAY")
     BigFont(c.waitText)
     c.waitText:SetText("...")
-    c.waitText:SetAlpha(0.4)
+    c.waitText:SetAlpha(0.55)
     c.icon = c.num:CreateTexture(nil, "ARTWORK")
     c.icon:SetSize(26, 26)
     c.icon:SetPoint("LEFT", hud, "LEFT", 3, 0)
