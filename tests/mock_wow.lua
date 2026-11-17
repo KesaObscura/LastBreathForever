@@ -26,11 +26,27 @@ end
 
 M.now, M.hp, M.combat, M.chat = 100, 1, false, {}
 M.target = { exists = true, hostile = true, dead = false, guid = "mob-1", class = "normal", level = 20 }
+M.focus, M.bosses = nil, {}   -- other units: mob tables like M.target with their own hp
 M.secretGuid = false   -- dungeons: the game does not tell targets apart
+M.secretSame = false   -- UnitIsUnit keeps its answer to itself
+M.noUnitEvents = {}    -- [unit] = true: the game sends no hits for this unit
 M.noCurves = false     -- a client without the curve API
 function GetTime() return M.now end
 function GetLocale() return M.locale or "enUS" end
 function InCombatLockdown() return M.combat end
+function date() return "12:00:00" end
+M.shots = 0
+function Screenshot() M.shots = M.shots + 1 end
+local function mob(unit)
+  if unit == "target" then return M.target.exists and M.target or nil end
+  if unit == "focus" then return M.focus end
+  local n = type(unit) == "string" and unit:match("^boss(%d)$")
+  if n then return M.bosses[tonumber(n)] end
+  if unit == "player" then return { player = true } end
+end
+M.mob = mob
+-- the target's health is M.hp (the tests move it); other mobs carry their own
+local function hpOf(m) if m == M.target then return M.hp end return m.hp or 1 end
 
 local function Curve(step)
   local c = { pts = {}, step = step }
@@ -64,16 +80,29 @@ function CreateColor(r, g, b, a)
 end
 function UnitHealthPercent(unit, predicted, curve)
   if type(predicted) ~= "boolean" then error("usage: unit, usePredicted, curve") end
-  local v = curve:Eval(M.hp)
+  local m = mob(unit)
+  if not m then error("no such unit") end
+  local v = curve:Eval(hpOf(m))
   if type(v) == "table" then return v end
   return M.secret(v)
 end
-function UnitExists() return M.target.exists end
-function UnitCanAttack() return M.target.hostile end
-function UnitIsDeadOrGhost() return M.target.dead end
-function UnitGUID() if M.secretGuid then return M.secret(M.target.guid) end return M.target.guid end
-function UnitClassification() return M.target.class end
-function UnitLevel() return M.target.level end
+function UnitExists(u) return mob(u) ~= nil end
+function UnitCanAttack(_, u) local m = mob(u) return m ~= nil and m.hostile ~= false end
+function UnitIsDeadOrGhost(u) local m = mob(u) return m ~= nil and m.dead == true end
+function UnitGUID(u)
+  local m = mob(u)
+  if not m then return nil end
+  if M.secretGuid then return M.secret(m.guid) end
+  return m.guid
+end
+function UnitClassification(u) local m = mob(u) return m and m.class or "normal" end
+function UnitLevel(u) local m = mob(u) return m and m.level or 1 end
+function UnitIsUnit(a, b)
+  local x, y = mob(a), mob(b)
+  local r = x ~= nil and x == y
+  if M.secretSame then return M.secret(r) end
+  return r
+end
 
 -- widgets: unknown methods do nothing, the ones the tests look at keep state
 local methods = {}
@@ -151,11 +180,16 @@ function M.load(root)
   for _, file in ipairs({ "Locale.lua", "Skin.lua", "Core.lua", "Options.lua" }) do
     assert(loadfile(root .. file))("LastBreathForever", ns)
   end
-  for _, f in ipairs(M.frames) do if f.scripts.OnEvent then M.ev = f end end
+  for _, f in ipairs(M.frames) do if f.scripts.OnUpdate then M.ev = f end end
   M.ns = ns
   return ns
 end
-function M.fire(e, ...) M.ev.scripts.OnEvent(M.ev, e, ...) end
+function M.fire(e, ...)
+  for i = 1, #M.frames do
+    local f = M.frames[i]
+    if f.scripts.OnEvent then f.scripts.OnEvent(f, e, ...) end
+  end
+end
 function M.tick(seconds, hpPerSecond)
   local steps = math.floor(seconds / 0.2 + 0.5)
   for _ = 1, steps do
@@ -164,5 +198,13 @@ function M.tick(seconds, hpPerSecond)
     M.ev.scripts.OnUpdate(M.ev, 0.2)
   end
 end
-function M.hit() M.fire("UNIT_COMBAT", "target", "WOUND") end
+-- a hit on a mob (the target when none is given): the game tells every unit name it has
+function M.hit(m)
+  m = m or M.target
+  local units = { "target", "focus" }
+  for i = 1, 4 do units[#units + 1] = "boss" .. i end
+  for _, u in ipairs(units) do
+    if mob(u) == m and not M.noUnitEvents[u] then M.fire("UNIT_COMBAT", u, "WOUND") end
+  end
+end
 return M

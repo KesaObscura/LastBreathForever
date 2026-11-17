@@ -16,6 +16,7 @@ local LOWEST = 0.20        -- a target first hit below this share gets no estima
 local LOST = 0.05          -- a band's estimate shows once the target is this far below the band
 local CAP = 3600           -- the longest estimate (seconds)
 local SLOTS = 8            -- targets remembered during one fight
+local BOSSES = 4           -- bosses of an encounter followed in the background
 ns.LIMITS = { 0, 30, 60, 120, 300, 600 } -- "Show from": 0 = always
 ns.URGENTS = { 0, 3, 5, 10, 15, 20, 30, 45, 60 } -- "Last seconds in red": 0 = off
 local SECONDS = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 50, 60,
@@ -28,6 +29,8 @@ local DEFAULTS = {
   limit = 300,     -- seconds: show from here down (0 = always)
   urgent = 5,      -- seconds: red from here down (0 = off)
   elite = false,   -- only elite, rare and boss targets
+  focus = false,   -- a second frame for the focus
+  shots = false,   -- test builds: screenshots while seconds are on screen (/lbf shots)
 }
 ns.DEFAULTS = DEFAULTS
 
@@ -85,19 +88,21 @@ local function InitDB()
   if db.scale < 0.5 or db.scale > 3 then db.scale = DEFAULTS.scale end
   if not InList(ns.LIMITS, db.limit) then db.limit = DEFAULTS.limit end
   if not InList(ns.URGENTS, db.urgent) then db.urgent = DEFAULTS.urgent end
-  if db.point ~= nil and (type(db.point) ~= "table" or type(db.point[1]) ~= "number"
-      or type(db.point[2]) ~= "number") then db.point = nil end
+  for _, key in ipairs({ "point", "focusPoint" }) do
+    local p = db[key]
+    if p ~= nil and (type(p) ~= "table" or type(p[1]) ~= "number" or type(p[2]) ~= "number") then db[key] = nil end
+  end
+  if type(db.checks) ~= "table" then db.checks = {} end
   ns.db = db
 end
 
 ------------------------------------------------------------------------
--- the frame on screen
+-- bands
 ------------------------------------------------------------------------
-local hud, icon2, sample, unlockBg, lockBtn, setBtn
--- A target may already be hurt when its first hit is seen. The addon cannot read how much, so
+-- A unit may already be hurt when its first hit is seen. The addon cannot read how much, so
 -- the health scale is cut into bands: BANDS[k] = { lo, hi, start } (start = the share the
 -- estimate of that band counts from). Every band has its own seconds on screen; the game shows
--- the one whose band the target was in at its first hit, and nothing else.
+-- the one whose band the unit was in at its first hit, and nothing else.
 local BANDS = { { lo = FULL, hi = 1.01, start = 1 } }
 do
   local hi = FULL
@@ -107,172 +112,6 @@ do
   end
 end
 ns.BANDS = BANDS
-local slots = {}   -- [i] = { frame, gates[k], guid, hit, lastHit, hits, used }
-local cells = {}   -- [k] = { frame, icon, textN, textU }: the seconds of band k
-local cur          -- the slot of the current target, or nil
-local inCombat = false
-
--- text with letters ("s", "с", "초"): only the game's own font objects keep every alphabet
-local function BigFont(fs)
-  for _, name in ipairs({ "GameFontNormalHugeOutline", "GameFontNormalLargeOutline",
-                          "GameFontHighlightOutline", "GameFontHighlightLarge" }) do
-    if _G[name] then fs:SetFontObject(name) return end
-  end
-end
-
-local function PlaceHud()
-  hud:SetScale(db.scale)
-  hud:ClearAllPoints()
-  if db.point then
-    -- the point is kept in screen units, so a new size leaves the frame where it is
-    hud:SetPoint("CENTER", UIParent, "BOTTOMLEFT", db.point[1] / db.scale, db.point[2] / db.scale)
-  else
-    hud:SetPoint("CENTER", UIParent, "CENTER", 0, 140 / db.scale)
-  end
-end
-
-local function HudButton(text, tipTitle, tipText)
-  local b = CreateFrame("Button", nil, hud)
-  b:SetSize(80, 20)
-  Skin.RedButton(b)
-  b:SetNormalFontObject("GameFontNormalSmall")
-  b:SetHighlightFontObject("GameFontHighlightSmall")
-  b:SetText(text)
-  local fs = b:GetFontString()
-  if fs and fs.GetStringWidth then b:SetWidth(math.max(80, math.ceil(fs:GetStringWidth() or 0) + 20)) end
-  b:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(tipTitle, 1, 1, 1)
-    GameTooltip:AddLine(tipText, 0.82, 0.82, 0.82, true)
-    GameTooltip:Show()
-  end)
-  b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-  return b
-end
-
-local function ApplyLock()
-  local unlocked = not db.locked
-  hud:EnableMouse(unlocked)
-  unlockBg:SetShown(unlocked)
-  hud.edge:SetShown(unlocked)
-  sample:SetShown(unlocked)
-  hud.drag:SetShown(unlocked)
-  lockBtn:SetShown(unlocked)
-  setBtn:SetShown(unlocked)
-end
-
-local function ApplyLook()
-  PlaceHud()
-  icon2:SetShown(db.icon and not db.locked)
-  sample:ClearAllPoints()
-  -- with the icon the seconds stand right of it, without it they are centred
-  local point, x = "CENTER", 0
-  if db.icon then point, x = "LEFT", 34 end
-  sample:SetPoint(point, hud, point, x, 0)
-  for _, c in ipairs(cells) do
-    c.icon:SetShown(db.icon)
-    c.textN:ClearAllPoints()
-    c.textN:SetPoint(point, hud, point, x, 0)
-    c.textU:ClearAllPoints()
-    c.textU:SetAllPoints(c.textN)
-  end
-  sample:SetText(string.format(L.fmtSec, 12))
-end
-
-function ns.SetLocked(locked, quiet)
-  db.locked = locked and true or false
-  ApplyLock()
-  ApplyLook()
-  if not quiet then Print("%s", db.locked and L.msgLocked or L.msgUnlocked) end
-  if ns.RefreshOptions then ns.RefreshOptions() end
-end
-
-function ns.ResetPosition()
-  db.point = nil
-  PlaceHud()
-  Print("%s", L.msgReset)
-end
-
-function ns.Apply()
-  ApplyLock()
-  ApplyLook()
-end
-
-local function BuildHud()
-  hud = CreateFrame("Frame", "LastBreathForeverFrame", UIParent)
-  hud:SetSize(130, 30)
-  hud:SetMovable(true)
-  hud:SetClampedToScreen(true)
-  hud:RegisterForDrag("LeftButton")
-  hud:SetScript("OnDragStart", function(self) if not db.locked then self:StartMoving() end end)
-  hud:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    local x, y = self:GetCenter()
-    if x and y then
-      db.point = { x * db.scale, y * db.scale }
-      PlaceHud()
-    end
-  end)
-
-  -- while unlocked: a dark plate in the addon's colour, a sample and two buttons
-  unlockBg = hud:CreateTexture(nil, "BACKGROUND")
-  unlockBg:SetAllPoints()
-  unlockBg:SetColorTexture(Skin.BG[1], Skin.BG[2], Skin.BG[3], 0.85)
-  hud.edge = CreateFrame("Frame", nil, hud)
-  hud.edge:SetAllPoints()
-  Skin.Edge(hud.edge, Skin.ACCENT, 0.9)
-  hud.drag = hud:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  hud.drag:SetPoint("BOTTOM", hud, "TOP", 0, 3)
-  hud.drag:SetText(L.hudDrag)
-  sample = hud:CreateFontString(nil, "OVERLAY")
-  BigFont(sample)
-  icon2 = hud:CreateTexture(nil, "ARTWORK")
-  icon2:SetSize(26, 26)
-  icon2:SetPoint("LEFT", hud, "LEFT", 3, 0)
-  icon2:SetTexture(Skin.LOGO)
-  lockBtn = HudButton(L.optLock, L.optLock, L.tipHudLock)
-  lockBtn:SetPoint("TOPRIGHT", hud, "BOTTOM", -2, -4)
-  lockBtn:SetScript("OnClick", function() ns.SetLocked(true) end)
-  setBtn = HudButton(L.hudSettings, L.hudSettings, L.tipHudSettings)
-  setBtn:SetPoint("TOPLEFT", hud, "BOTTOM", 2, -4)
-  setBtn:SetScript("OnClick", function() if ns.ToggleOptions then ns.ToggleOptions(true) end end)
-
-  -- one frame per remembered target, with one inner frame per band. The game sets the
-  -- opacity of the inner frames once, at the first hit: visible for the band the target was
-  -- in, invisible for all others.
-  for i = 1, SLOTS do
-    local f = CreateFrame("Frame", nil, hud)
-    f:SetAllPoints()
-    local gates = {}
-    for k = 1, #BANDS do
-      gates[k] = CreateFrame("Frame", nil, f)
-      gates[k]:SetAllPoints(hud)
-      gates[k]:SetAlpha(0)
-    end
-    slots[i] = { frame = f, gates = gates, hits = 0, used = 0 }
-  end
-  -- the seconds of each band; the opacity of a cell follows "Show from", set anew by the
-  -- game on every update. The cells sit in the inner frames of the current target.
-  for k = 1, #BANDS do
-    local c = {}
-    c.frame = CreateFrame("Frame", nil, slots[1].gates[k])
-    c.frame:SetAllPoints(hud)
-    c.icon = c.frame:CreateTexture(nil, "ARTWORK")
-    c.icon:SetSize(26, 26)
-    c.icon:SetPoint("LEFT", hud, "LEFT", 3, 0)
-    c.icon:SetTexture(Skin.LOGO)
-    c.textN = c.frame:CreateFontString(nil, "OVERLAY")
-    BigFont(c.textN)
-    c.textN:SetTextColor(1, 1, 1)
-    c.textU = c.frame:CreateFontString(nil, "OVERLAY")
-    BigFont(c.textU)
-    c.textU:SetTextColor(1, 0.25, 0.30)
-    c.textU:SetAlpha(0)
-    c.frame:Hide()
-    cells[k] = c
-  end
-  ns.hud, ns.cells, ns.slots = hud, cells, slots
-end
 
 ------------------------------------------------------------------------
 -- what the game is asked
@@ -306,7 +145,7 @@ local function InitCurves()
   return true
 end
 
--- the share of health at which the target has `seconds` left, when it has been losing health
+-- the share of health at which a unit has `seconds` left, when it has been losing health
 -- evenly for T seconds since it was at `start`: the same rule the seconds themselves follow
 local function ShareAt(seconds, T, start) return seconds * start / (seconds + T) end
 
@@ -317,113 +156,331 @@ local function Band(curve, share, yesBelow)
   curve:AddPoint(math.min(share, 1), yesBelow and OFF or ON)
 end
 
-local function Percent(curve) return pcall(UnitHealthPercent, "target", false, curve) end
+local function Percent(unit, curve) return pcall(UnitHealthPercent, unit, false, curve) end
 
 -- the game's yes / no as the opacity of a frame or text; false when that did not work
-local function Opacity(region, curve)
-  local ok, colour = Percent(curve)
+local function Opacity(region, unit, curve)
+  local ok, colour = Percent(unit, curve)
   if not ok or type(colour) ~= "table" then return false end
   local okA, _, _, _, a = pcall(colour.GetRGBA, colour)
   return okA and (pcall(region.SetAlpha, region, a)) or false
 end
 
 ------------------------------------------------------------------------
--- targets
+-- tracks: one unit followed through a fight
 ------------------------------------------------------------------------
-local function Hostile()
-  return Bool(UnitExists, "target") == true and Bool(UnitCanAttack, "player", "target") == true
-    and Bool(UnitIsDeadOrGhost, "target") == false
-end
+-- A track counts the hits on its unit and holds one frame per band. The game sets the opacity
+-- of these frames once, at the first hit: visible for the band the unit was in, invisible for
+-- the others. Whatever is shown for the unit sits inside them.
+local root            -- parent of all tracks' frames; it carries the size
+local targetSlots = {} -- tracks of "target": several, so a target met again keeps its count
+local focusTrack
+local bossTracks = {}  -- "boss1" ...: followed while an encounter runs, whoever is the target
+local cur             -- the track of the current target among targetSlots, or nil
+local inCombat = false
 
-local STRONG = { elite = true, rareelite = true, rare = true, worldboss = true }
-local function Wanted()
-  if not db.elite then return true end
-  if STRONG[Plain(UnitClassification, "target") or ""] then return true end
-  return Plain(UnitLevel, "target") == -1
-end
-
-local useCount = 0
-local function FreeSlot()
-  local best
-  for _, s in ipairs(slots) do
-    if not best or s.used < best.used then best = s end
+local function NewTrack(unit)
+  local t = { unit = unit, gates = {}, hits = 0, used = 0, maxHits = 0, asked = 0, failed = 0 }
+  for k = 1, #BANDS do
+    local g = CreateFrame("Frame", nil, root)
+    g:SetAlpha(0)
+    t.gates[k] = g
   end
-  best.guid, best.hit, best.lastHit, best.hits = nil, nil, nil, 0
-  for _, g in ipairs(best.gates) do g:SetAlpha(0) end
-  return best
+  return t
 end
 
-local function HideCells()
-  for _, c in ipairs(cells) do c.frame:Hide() end
+local function Clear(t)
+  t.guid, t.hit, t.lastHit, t.hits = nil, nil, nil, 0
+  for _, g in ipairs(t.gates) do g:SetAlpha(0) end
 end
 
-local function Select(slot)
-  cur = slot
-  if slot then
-    useCount = useCount + 1
-    slot.used = useCount
-    for k, c in ipairs(cells) do
-      c.frame:SetParent(slot.gates[k])
-      c.frame:SetAllPoints(hud)
-    end
-  end
-  HideCells()
-end
-
-local function ForgetAll()
-  for _, s in ipairs(slots) do
-    s.guid, s.hit, s.lastHit, s.hits, s.used = nil, nil, nil, 0, 0
-    for _, g in ipairs(s.gates) do g:SetAlpha(0) end
-  end
-  useCount = 0
-  Select(nil)
-end
-
-local function TargetChanged()
-  if not Hostile() then Select(nil) return end
-  -- where the game tells targets apart, a target met again in the same fight keeps its count
-  local guid = Plain(UnitGUID, "target")
-  if type(guid) == "string" then
-    for _, s in ipairs(slots) do
-      if s.guid == guid then Select(s) return end
-    end
-  end
-  local s = FreeSlot()
-  s.guid = type(guid) == "string" and guid or nil
-  Select(s)
-end
-
-local function TargetHit()
-  if not cur then return end
+local function Hit(t)
+  if not t then return end
   local now = GetTime()
-  cur.hits = cur.hits + 1
-  cur.lastHit = now
-  if not cur.hit then
-    cur.hit = now
-    -- the game marks, once, the band this target is in now; all other bands stay invisible
-    for k, g in ipairs(cur.gates) do
-      if not Opacity(g, bandCurves[k]) then
-        for _, x in ipairs(cur.gates) do x:SetAlpha(0) end
-        Broken()
+  t.hits = t.hits + 1
+  if t.hits > t.maxHits then t.maxHits = t.hits end
+  t.lastHit = now
+  if not t.hit then
+    t.hit = now
+    -- the game marks, once, the band this unit is in now; all other bands stay invisible
+    for k, g in ipairs(t.gates) do
+      if not Opacity(g, t.unit, bandCurves[k]) then
+        for _, x in ipairs(t.gates) do x:SetAlpha(0) end
+        t.failed = t.failed + 1
         break
       end
     end
   end
 end
 
+local function Hostile(unit)
+  return Bool(UnitExists, unit) == true and Bool(UnitCanAttack, "player", unit) == true
+    and Bool(UnitIsDeadOrGhost, unit) == false
+end
+
+local STRONG = { elite = true, rareelite = true, rare = true, worldboss = true }
+local function Wanted(unit)
+  if not db.elite then return true end
+  if STRONG[Plain(UnitClassification, unit) or ""] then return true end
+  return Plain(UnitLevel, unit) == -1
+end
+
+local function Ready(t)
+  if not t or not t.hit or t.hits < MIN_HITS then return false end
+  if GetTime() - t.hit < MIN_TIME then return false end
+  if Bool(UnitExists, t.unit) ~= true or Bool(UnitIsDeadOrGhost, t.unit) ~= false then return false end
+  return Wanted(t.unit)
+end
+
+-- the target's own track: found again by its id where the game tells units apart
+local useCount = 0
+local function TargetChanged()
+  cur = nil
+  if not Hostile("target") then return end
+  local guid = Plain(UnitGUID, "target")
+  if type(guid) ~= "string" then guid = nil end
+  local best
+  for _, t in ipairs(targetSlots) do
+    if guid and t.guid == guid then cur = t break end
+    if not best or t.used < best.used then best = t end
+  end
+  if not cur then
+    Clear(best)
+    best.guid = guid
+    cur = best
+  end
+  useCount = useCount + 1
+  cur.used = useCount
+end
+
+local function FocusChanged()
+  Clear(focusTrack)
+end
+
+local function ForgetAll()
+  for _, t in ipairs(targetSlots) do Clear(t) t.used = 0 end
+  for _, t in ipairs(bossTracks) do Clear(t) end
+  Clear(focusTrack)
+  useCount = 0
+  cur = nil
+end
+
+-- is `a` the same unit as `b`? true / false, or nil when the game does not say
+local same = { yes = 0, no = 0, unknown = 0 } -- counted for /lbf check
+local function Same(a, b)
+  if Bool(UnitExists, b) ~= true then return false end
+  local r = Bool(UnitIsUnit, a, b)
+  if r == true then same.yes = same.yes + 1 elseif r == false then same.no = same.no + 1
+  else same.unknown = same.unknown + 1 end
+  return r
+end
+
+-- the track a frame shows: a boss of the encounter is followed from its first hit, the focus
+-- for as long as it is the focus, any other target since it became the target
+local function TrackFor(unit)
+  for _, t in ipairs(bossTracks) do
+    if t.hit and Same(unit, t.unit) == true then return t end
+  end
+  if unit == "focus" then return focusTrack end
+  if db.focus and focusTrack.hit and Same("target", "focus") == true then return focusTrack end
+  return cur
+end
+
+------------------------------------------------------------------------
+-- views: the frames on screen (target, focus)
+------------------------------------------------------------------------
+local views = {}
+local lockBtn, setBtn
+
+-- text with letters ("s", "с", "초"): only the game's own font objects keep every alphabet
+local function BigFont(fs)
+  for _, name in ipairs({ "GameFontNormalHugeOutline", "GameFontNormalLargeOutline",
+                          "GameFontHighlightOutline", "GameFontHighlightLarge" }) do
+    if _G[name] then fs:SetFontObject(name) return end
+  end
+end
+
+local function Place(v)
+  local hud = v.hud
+  hud:SetScale(db.scale)
+  hud:ClearAllPoints()
+  local p = db[v.pointKey]
+  if p then
+    -- the point is kept in screen units, so a new size leaves the frame where it is
+    hud:SetPoint("CENTER", UIParent, "BOTTOMLEFT", p[1] / db.scale, p[2] / db.scale)
+  else
+    hud:SetPoint("CENTER", UIParent, "CENTER", 0, v.defaultY / db.scale)
+  end
+end
+
+local function HudButton(parent, text, tipTitle, tipText)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetSize(80, 20)
+  Skin.RedButton(b)
+  b:SetNormalFontObject("GameFontNormalSmall")
+  b:SetHighlightFontObject("GameFontHighlightSmall")
+  b:SetText(text)
+  local fs = b:GetFontString()
+  if fs and fs.GetStringWidth then b:SetWidth(math.max(80, math.ceil(fs:GetStringWidth() or 0) + 20)) end
+  b:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(tipTitle, 1, 1, 1)
+    GameTooltip:AddLine(tipText, 0.82, 0.82, 0.82, true)
+    GameTooltip:Show()
+  end)
+  b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  return b
+end
+
+local function HideCells(v)
+  for _, c in ipairs(v.cells) do c.frame:Hide() end
+end
+
+-- puts the view's seconds inside the frames of a track (or nowhere)
+local function Attach(v, track)
+  if v.track == track then return end
+  v.track = track
+  if track then
+    for k, c in ipairs(v.cells) do
+      c.frame:SetParent(track.gates[k])
+      c.frame:ClearAllPoints()
+      c.frame:SetAllPoints(v.hud)
+    end
+  end
+  HideCells(v)
+end
+
+local function BuildView(unit, pointKey, defaultY, label)
+  local v = { unit = unit, pointKey = pointKey, defaultY = defaultY, cells = {} }
+  local hud = CreateFrame("Frame", nil, UIParent)
+  v.hud = hud
+  hud:SetSize(130, 30)
+  hud:SetMovable(true)
+  hud:SetClampedToScreen(true)
+  hud:RegisterForDrag("LeftButton")
+  hud:SetScript("OnDragStart", function(self) if not db.locked then self:StartMoving() end end)
+  hud:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    local x, y = self:GetCenter()
+    if x and y then
+      db[pointKey] = { x * db.scale, y * db.scale }
+      Place(v)
+    end
+  end)
+  -- while unlocked: a dark plate in the addon's colour with a sample
+  v.plate = CreateFrame("Frame", nil, hud)
+  v.plate:SetAllPoints()
+  local bg = v.plate:CreateTexture(nil, "BACKGROUND")
+  bg:SetAllPoints()
+  bg:SetColorTexture(Skin.BG[1], Skin.BG[2], Skin.BG[3], 0.85)
+  Skin.Edge(v.plate, Skin.ACCENT, 0.9)
+  v.drag = v.plate:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  v.drag:SetPoint("BOTTOM", hud, "TOP", 0, 3)
+  v.drag:SetText(label)
+  v.sample = v.plate:CreateFontString(nil, "OVERLAY")
+  BigFont(v.sample)
+  v.sampleIcon = v.plate:CreateTexture(nil, "ARTWORK")
+  v.sampleIcon:SetSize(26, 26)
+  v.sampleIcon:SetPoint("LEFT", hud, "LEFT", 3, 0)
+  v.sampleIcon:SetTexture(Skin.LOGO)
+  -- the seconds of each band; the opacity of a cell follows "Show from", set anew by the
+  -- game on every update
+  for k = 1, #BANDS do
+    local c = {}
+    c.frame = CreateFrame("Frame", nil, root)
+    c.frame:SetAllPoints(hud)
+    c.icon = c.frame:CreateTexture(nil, "ARTWORK")
+    c.icon:SetSize(26, 26)
+    c.icon:SetPoint("LEFT", hud, "LEFT", 3, 0)
+    c.icon:SetTexture(Skin.LOGO)
+    c.textN = c.frame:CreateFontString(nil, "OVERLAY")
+    BigFont(c.textN)
+    c.textN:SetTextColor(1, 1, 1)
+    c.textU = c.frame:CreateFontString(nil, "OVERLAY")
+    BigFont(c.textU)
+    c.textU:SetTextColor(1, 0.25, 0.30)
+    c.textU:SetAlpha(0)
+    if unit ~= "target" then
+      -- a small word over the seconds tells the second frame from the first
+      c.tag = c.frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+      c.tag:SetPoint("BOTTOM", hud, "TOP", 0, -2)
+      c.tag:SetText(label)
+    end
+    c.frame:Hide()
+    v.cells[k] = c
+  end
+  views[#views + 1] = v
+  return v
+end
+
+local function Enabled(v) return v.unit == "target" or db.focus end
+
+function ns.Apply()
+  root:SetScale(db.scale)
+  local unlocked = not db.locked
+  local point, x = "CENTER", 0
+  if db.icon then point, x = "LEFT", 34 end -- with the icon the seconds stand right of it
+  for _, v in ipairs(views) do
+    Place(v)
+    local on = Enabled(v)
+    v.hud:SetShown(on)
+    v.hud:EnableMouse(unlocked and on)
+    v.plate:SetShown(unlocked and on)
+    v.sampleIcon:SetShown(db.icon)
+    v.sample:ClearAllPoints()
+    v.sample:SetPoint(point, v.hud, point, x, 0)
+    v.sample:SetText(string.format(L.fmtSec, 12))
+    for _, c in ipairs(v.cells) do
+      c.icon:SetShown(db.icon)
+      c.textN:ClearAllPoints()
+      c.textN:SetPoint(point, v.hud, point, x, 0)
+      c.textU:ClearAllPoints()
+      c.textU:SetAllPoints(c.textN)
+    end
+    if not on or unlocked then HideCells(v) end
+  end
+  lockBtn:SetShown(unlocked)
+  setBtn:SetShown(unlocked)
+end
+
+function ns.SetLocked(locked, quiet)
+  db.locked = locked and true or false
+  ns.Apply()
+  if not quiet then Print("%s", db.locked and L.msgLocked or L.msgUnlocked) end
+  if ns.RefreshOptions then ns.RefreshOptions() end
+end
+
+function ns.ResetPosition()
+  db.point, db.focusPoint = nil, nil
+  ns.Apply()
+  Print("%s", L.msgReset)
+end
+
+local function BuildAll()
+  root = CreateFrame("Frame", nil, UIParent)
+  root:SetSize(1, 1)
+  root:SetPoint("CENTER")
+  for i = 1, SLOTS do targetSlots[i] = NewTrack("target") end
+  focusTrack = NewTrack("focus")
+  for i = 1, BOSSES do bossTracks[i] = NewTrack("boss" .. i) end
+  local main = BuildView("target", "point", 140, L.hudDrag)
+  BuildView("focus", "focusPoint", 100, L.hudFocus)
+  lockBtn = HudButton(main.hud, L.optLock, L.optLock, L.tipHudLock)
+  lockBtn:SetPoint("TOPRIGHT", main.hud, "BOTTOM", -2, -4)
+  lockBtn:SetScript("OnClick", function() ns.SetLocked(true) end)
+  setBtn = HudButton(main.hud, L.hudSettings, L.hudSettings, L.tipHudSettings)
+  setBtn:SetPoint("TOPLEFT", main.hud, "BOTTOM", 2, -4)
+  setBtn:SetScript("OnClick", function() if ns.ToggleOptions then ns.ToggleOptions(true) end end)
+  ns.views, ns.hud, ns.cells = views, main.hud, main.cells
+  ns.targetSlots, ns.focusTrack, ns.bossTracks = targetSlots, focusTrack, bossTracks
+end
+
 ------------------------------------------------------------------------
 -- update
 ------------------------------------------------------------------------
-local function Ready()
-  if not cur or not cur.hit or cur.hits < MIN_HITS then return false end
-  if GetTime() - cur.hit < MIN_TIME then return false end
-  if Bool(UnitIsDeadOrGhost, "target") ~= false then return false end
-  return Wanted()
-end
-
--- the seconds of one band: text, "Show from", red or white
-local function ShowBand(k, T)
-  local b, c = BANDS[k], cells[k]
+-- the seconds of one band of a view: text, "Show from", red or white
+local function ShowBand(v, t, k, T)
+  local b, c, unit = BANDS[k], v.cells[k], t.unit
   ttdCurve:ClearPoints()
   ttdCurve:AddPoint(0, 0)
   for i = 1, #SECONDS do
@@ -431,24 +488,24 @@ local function ShowBand(k, T)
     ttdCurve:AddPoint(ShareAt(s, T, b.start), s)
   end
   ttdCurve:AddPoint(1, CAP)
-  local ok, seconds = Percent(ttdCurve)
+  local ok, seconds = Percent(unit, ttdCurve)
   if not ok then return false end
   local okT, text = pcall(string.format, L.fmtSec, seconds)
   if not okT then return false end
   c.textN:SetText(text)
   c.textU:SetText(text)
-  -- "Show from": hidden while more than the limit is left, and until the target has lost
-  -- enough for an estimate (a full target: next to nothing; a hurt one: LOST below its band)
+  -- "Show from": hidden while more than the limit is left, and until the unit has lost
+  -- enough for an estimate (a full one: next to nothing; a hurt one: LOST below its band)
   local limit = db.limit > 0 and db.limit or CAP
   local top = k == 1 and 0.995 or (b.lo - LOST)
   Band(limitCurve, math.min(ShareAt(limit, T, b.start), top), true)
-  if not Opacity(c.frame, limitCurve) then return false end
+  if not Opacity(c.frame, unit, limitCurve) then return false end
   -- "Last seconds in red": the red text below the mark, the white one above it
   if db.urgent > 0 then
     local share = ShareAt(db.urgent, T, b.start)
     Band(urgentCurve, share, true)
     Band(normalCurve, share, false)
-    if not (Opacity(c.textU, urgentCurve) and Opacity(c.textN, normalCurve)) then return false end
+    if not (Opacity(c.textU, unit, urgentCurve) and Opacity(c.textN, unit, normalCurve)) then return false end
   else
     c.textU:SetAlpha(0)
     c.textN:SetAlpha(1)
@@ -456,27 +513,78 @@ local function ShowBand(k, T)
   return true
 end
 
-local function Show()
+local function ShowView(v, t)
   -- the first hit already took its share of health but no time: count one average gap
   -- between hits before it
-  local start = cur.hit - (cur.lastHit - cur.hit) / (cur.hits - 1)
+  local start = t.hit - (t.lastHit - t.hit) / (t.hits - 1)
   local T = GetTime() - start
+  t.asked = t.asked + 1
   for k = 1, #BANDS do
-    if not ShowBand(k, T) then return false end
+    if not ShowBand(v, t, k, T) then
+      t.failed = t.failed + 1
+      return false
+    end
   end
   return true
 end
 
+-- test builds: a screenshot every SHOT_EVERY seconds while the target's seconds are worked
+-- out, for checking them against the fight afterwards (and for pictures); /lbf shots
+local SHOT_EVERY, SHOT_MAX = 10, 80
+local lastShot, shotCount = 0, 0
+local function MaybeShot()
+  if not db.shots or shotCount >= SHOT_MAX or type(Screenshot) ~= "function" then return end
+  local now = GetTime()
+  if now - lastShot < SHOT_EVERY then return end
+  lastShot = now
+  if pcall(Screenshot) then shotCount = shotCount + 1 end
+end
+
 local function Update()
-  if not db.locked or not Ready() then HideCells() return end
-  if Show() then
-    for _, c in ipairs(cells) do c.frame:Show() end
-  else
-    HideCells()
-    Broken()
+  for _, v in ipairs(views) do
+    local t = nil
+    if db.locked and Enabled(v) and Hostile(v.unit) then t = TrackFor(v.unit) end
+    Attach(v, t)
+    if Ready(t) and ShowView(v, t) then
+      for _, c in ipairs(v.cells) do c.frame:Show() end
+      if v.unit == "target" then MaybeShot() end
+    else
+      HideCells(v)
+      if t and t.failed > 0 then Broken() end
+    end
   end
 end
 ns.Update = Update
+
+------------------------------------------------------------------------
+-- what the game answered (for bug reports): /lbf check
+------------------------------------------------------------------------
+local encounter -- the id of the running encounter, or nil
+local function Yn(v) if v == true then return "y" elseif v == false then return "n" end return "?" end
+
+local function CheckLine(why)
+  local parts = { date("%H:%M:%S"), why, "enc=" .. tostring(encounter or "-") }
+  local function add(name, t)
+    parts[#parts + 1] = string.format("%s[hits=%d asked=%d failed=%d]", name, t.maxHits, t.asked, t.failed)
+    t.maxHits, t.asked, t.failed = 0, 0, 0
+  end
+  local best = targetSlots[1]
+  for _, t in ipairs(targetSlots) do if t.maxHits > best.maxHits then best = t end end
+  add("target", best)
+  for _, t in ipairs(targetSlots) do t.maxHits, t.asked, t.failed = 0, 0, 0 end
+  add("focus", focusTrack)
+  for i, t in ipairs(bossTracks) do
+    if i == 1 or t.maxHits > 0 then add(t.unit, t) end
+  end
+  parts[#parts + 1] = string.format("same[y=%d n=%d ?=%d]", same.yes, same.no, same.unknown)
+  same.yes, same.no, same.unknown = 0, 0, 0
+  parts[#parts + 1] = string.format("now[boss1=%s focus=%s guid=%s]", Yn(Bool(UnitExists, "boss1")),
+    Yn(Bool(UnitExists, "focus")), type(Plain(UnitGUID, "target")) == "string" and "plain" or "hidden")
+  local list = db.checks
+  list[#list + 1] = table.concat(parts, " ")
+  while #list > 30 do table.remove(list, 1) end
+end
+ns.CheckLine = CheckLine
 
 ------------------------------------------------------------------------
 -- events
@@ -491,49 +599,67 @@ ev:SetScript("OnUpdate", function(_, elapsed)
   if not ready then return end
   -- an error in here hides the seconds: no number is better than a wrong one
   if not pcall(Update) then
-    HideCells()
+    for _, v in ipairs(views) do HideCells(v) end
     Broken()
   end
 end)
 
-local function OnEvent(_, event, a1, a2)
+-- hits: one listener per followed unit, so each track counts the hits on its own unit
+local function Listen(unit, onHit)
+  local f = CreateFrame("Frame")
+  f:SetScript("OnEvent", function(_, _, u, action)
+    if ready and u == unit and not IsSecret(action) and action == "WOUND" then onHit() end
+  end)
+  if not pcall(f.RegisterUnitEvent, f, "UNIT_COMBAT", unit) then pcall(f.RegisterEvent, f, "UNIT_COMBAT") end
+end
+
+local function OnEvent(_, event, a1)
   if event == "ADDON_LOADED" then
     if a1 ~= ADDON then return end
     InitDB()
-    BuildHud()
+    BuildAll()
     ready = InitCurves()
     if not ready then Broken() end
     ns.Apply()
+    Listen("target", function() Hit(cur) end)
+    Listen("focus", function() Hit(focusTrack) end)
+    for _, t in ipairs(bossTracks) do Listen(t.unit, function() Hit(t) end) end
     if ns.InitOptions then ns.InitOptions() end
   elseif not ready then
     return
   elseif event == "PLAYER_REGEN_DISABLED" then
     inCombat = true
-    -- a fight never starts with the frame unlocked under the cursor
+    -- a fight never starts with the frames unlocked under the cursor
     if not db.locked then ns.SetLocked(true, true) end
     if not cur then TargetChanged() end
   elseif event == "PLAYER_REGEN_ENABLED" then
     inCombat = false
+    CheckLine("fight")
     ForgetAll()
     TargetChanged()
   elseif event == "PLAYER_TARGET_CHANGED" then
     TargetChanged()
+  elseif event == "PLAYER_FOCUS_CHANGED" then
+    FocusChanged()
+  elseif event == "ENCOUNTER_START" then
+    encounter = Plain(function() return a1 end)
+    for _, t in ipairs(bossTracks) do Clear(t) end
+  elseif event == "ENCOUNTER_END" then
+    CheckLine("boss")
+    encounter = nil
+    for _, t in ipairs(bossTracks) do Clear(t) end
   elseif event == "PLAYER_ENTERING_WORLD" then
     inCombat = Bool(InCombatLockdown) == true
     if inCombat and not db.locked then ns.SetLocked(true, true) end
     ForgetAll()
     TargetChanged()
-  elseif event == "UNIT_COMBAT" then
-    if a1 == "target" and not IsSecret(a2) and a2 == "WOUND" then TargetHit() end
   end
 end
 ev:SetScript("OnEvent", OnEvent)
-ev:RegisterEvent("ADDON_LOADED")
-ev:RegisterEvent("PLAYER_REGEN_DISABLED")
-ev:RegisterEvent("PLAYER_REGEN_ENABLED")
-ev:RegisterEvent("PLAYER_TARGET_CHANGED")
-ev:RegisterEvent("PLAYER_ENTERING_WORLD")
-if not pcall(ev.RegisterUnitEvent, ev, "UNIT_COMBAT", "target") then pcall(ev.RegisterEvent, ev, "UNIT_COMBAT") end
+for _, e in ipairs({ "ADDON_LOADED", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_TARGET_CHANGED",
+                     "PLAYER_FOCUS_CHANGED", "ENCOUNTER_START", "ENCOUNTER_END", "PLAYER_ENTERING_WORLD" }) do
+  pcall(ev.RegisterEvent, ev, e)
+end
 
 ------------------------------------------------------------------------
 -- commands and the addon menu at the minimap
@@ -548,8 +674,14 @@ SlashCmdList.LASTBREATHFOREVER = function(msg)
     if inCombat then Print("%s", L.msgLocked) else ns.SetLocked(false) end
   elseif msg == "reset" then
     ns.ResetPosition()
+  elseif msg == "shots" then
+    db.shots = not db.shots
+    Print("screenshots %s (every %d s while seconds are worked out, at most %d)", db.shots and "ON" or "off", SHOT_EVERY, SHOT_MAX)
+  elseif msg == "check" then
+    Print("v%s, %d lines:", ns.VERSION, #db.checks)
+    for i = math.max(1, #db.checks - 7), #db.checks do DEFAULT_CHAT_FRAME:AddMessage(db.checks[i]) end
   elseif msg == "help" or msg == "?" then
-    for _, k in ipairs({ "help1", "help2", "help3", "help4" }) do Print("%s", L[k]) end
+    for _, k in ipairs({ "help1", "help2", "help3", "help4", "help5" }) do Print("%s", L[k]) end
   elseif ns.ToggleOptions then
     ns.ToggleOptions()
   end

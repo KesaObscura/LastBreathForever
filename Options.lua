@@ -162,7 +162,7 @@ end
 local function Build()
   local db = ns.db
   win = CreateFrame("Frame", nil, UIParent)
-  win:SetSize(W, 392)
+  win:SetSize(W, 420)
   win:SetPoint("CENTER")
   win:SetFrameStrata("DIALOG")
   win:EnableMouse(true)
@@ -213,7 +213,8 @@ local function Build()
     { fmt = function(v) return v == 0 and L.optOff or string.format(L.fmtSecShort, v) end, next = InList(ns.URGENTS) })
   place(urgent.label)
   place(Check(win, L.optIcon, L.tipIcon, function() return db.icon end, function(v) db.icon = v; ns.Apply() end), 28)
-  place(Check(win, L.optElite, L.tipElite, function() return db.elite end, function(v) db.elite = v end), 40)
+  place(Check(win, L.optElite, L.tipElite, function() return db.elite end, function(v) db.elite = v end), 28)
+  place(Check(win, L.optFocus, L.tipFocus, function() return db.focus end, function(v) db.focus = v; ns.Apply() end), 40)
 
   place(Header(win, L.optPosition), 32)
   local lock = Button(win, L.optUnlock, 120)

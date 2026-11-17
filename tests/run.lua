@@ -164,7 +164,7 @@ test("after the fight everything is forgotten", function()
   M.combat = false M.fire("PLAYER_REGEN_ENABLED")
   M.tick(0.4, 0)
   assert(not shown(ns))
-  for _, s in ipairs(ns.slots) do assert(s.hits == 0 and s.hit == nil) end
+  for _, s in ipairs(ns.targetSlots) do assert(s.hits == 0 and s.hit == nil) end
 end)
 
 test("'Show from': hidden while more than the limit is left", function()
@@ -290,7 +290,7 @@ test("settings: every control has a tooltip, also the greyed-out ones", function
   ns.ToggleOptions()
   local win = ns.optionsWindow
   assert(win and win:IsShown())
-  assert(#win.controls >= 14, "controls: " .. #win.controls)
+  assert(#win.controls >= 15, "controls: " .. #win.controls)
   for i, c in ipairs(win.controls) do
     assert(c.scripts.OnEnter and c.tipTitle and c.tipText and c.tipText ~= "", "control " .. i .. " has no tooltip")
     c.scripts.OnEnter(c)
@@ -338,6 +338,155 @@ test("it works in every language (seconds text keeps its number)", function()
     near(seconds(ns), 12, 1, loc)
     ns.ToggleOptions()
   end
+end)
+
+-- the cell of the focus frame that is on screen
+local function focusSeconds(ns)
+  for _, c in ipairs(ns.views[2].cells) do
+    if M.visible(c.textN) or M.visible(c.textU) then
+      return tonumber(M.reveal(c.textN:GetText()):match("~(%d+)"))
+    end
+  end
+end
+local ALLY = { exists = true, hostile = false, guid = "ally" }
+local function boss() return { exists = true, hostile = true, guid = "boss", class = "elite", level = 30, hp = 1 } end
+
+test("healer: the boss is followed while an ally is the target; its seconds are there at once", function()
+  local ns = fresh()
+  local b = boss()
+  M.target = ALLY
+  M.bosses[1] = b
+  M.fire("ENCOUNTER_START", 592)
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  M.fire("PLAYER_TARGET_CHANGED")
+  for _ = 1, 20 do b.hp = b.hp - 0.02 M.hit(b) M.tick(1, 0) end     -- 60 % after 20 s
+  assert(not shown(ns), "an ally is the target: nothing on screen")
+  M.target, M.hp = b, b.hp
+  M.fire("PLAYER_TARGET_CHANGED")
+  M.tick(0.2, 0)
+  assert(shown(ns), "the boss becomes the target: seconds at once")
+  near(seconds(ns), 30, 3, "60 % left at 2 % per second")
+end)
+
+test("the boss cannot be followed directly (no hits for 'boss1'): the target still works", function()
+  local ns = fresh({ setup = function(m) m.noUnitEvents.boss1 = true end })
+  local b = boss()
+  M.bosses[1] = b
+  M.target, M.hp = b, 1
+  M.fire("ENCOUNTER_START", 592)
+  M.fire("PLAYER_TARGET_CHANGED")
+  fight(8, 0.05)
+  M.now = M.now - 1 M.tick(0.2, 0)
+  near(seconds(ns), 12, 1, "from the target's own count")
+end)
+
+test("the game does not say whether target and boss are the same: the target still works", function()
+  local ns = fresh({ setup = function(m) m.secretSame = true end })
+  local b = boss()
+  M.bosses[1] = b
+  M.target, M.hp = b, 1
+  M.fire("ENCOUNTER_START", 592)
+  M.fire("PLAYER_TARGET_CHANGED")
+  fight(8, 0.05)
+  M.now = M.now - 1 M.tick(0.2, 0)
+  near(seconds(ns), 12, 1, "from the target's own count")
+  assert(#M.chat == 0)
+end)
+
+test("focus frame: off by default; on: the focus' seconds while something else is the target", function()
+  local ns = fresh()
+  local f = boss()
+  M.focus = f
+  M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 10 do f.hp = f.hp - 0.04 M.hit(f) M.tick(1, 0) end     -- 60 % after 10 s
+  assert(not focusSeconds(ns), "switched off: no second frame")
+  assert(not M.visible(ns.views[2].hud))
+  ns.db.focus = true
+  ns.Apply()
+  M.tick(0.2, 0)
+  near(focusSeconds(ns), 15, 2, "focus: 60 % left at 4 % per second")
+  assert(not shown(ns), "the target (a fresh mob) shows nothing yet")
+end)
+
+test("target and focus are the same mob: both frames show the same seconds, from the longer count", function()
+  local ns = fresh({ db = { focus = true } })
+  local f = boss()
+  M.focus = f
+  M.fire("PLAYER_FOCUS_CHANGED")
+  M.target = ALLY
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  M.fire("PLAYER_TARGET_CHANGED")
+  for _ = 1, 10 do f.hp = f.hp - 0.04 M.hit(f) M.tick(1, 0) end
+  M.target, M.hp = f, f.hp
+  M.fire("PLAYER_TARGET_CHANGED")
+  M.tick(0.2, 0)
+  assert(shown(ns), "the focus becomes the target: seconds at once, not after three new hits")
+  assert(seconds(ns) == focusSeconds(ns), "both frames agree")
+  -- and it stays one count: hits are not doubled
+  local hits = ns.focusTrack.hits
+  M.hit(f)
+  assert(ns.focusTrack.hits == hits + 1)
+end)
+
+test("a new focus starts anew", function()
+  local ns = fresh({ db = { focus = true } })
+  local f = boss()
+  M.focus = f
+  M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 10 do f.hp = f.hp - 0.04 M.hit(f) M.tick(1, 0) end
+  assert(focusSeconds(ns))
+  M.focus = boss()
+  M.fire("PLAYER_FOCUS_CHANGED")
+  M.tick(0.4, 0)
+  assert(not focusSeconds(ns))
+end)
+
+test("unlocked with the focus frame: two plates, each keeps its own place", function()
+  local ns = fresh({ db = { focus = true } })
+  SlashCmdList.LASTBREATHFOREVER("unlock")
+  local v1, v2 = ns.views[1], ns.views[2]
+  assert(M.visible(v1.plate) and M.visible(v2.plate))
+  M.center = { 500, 300 }
+  v2.hud.scripts.OnDragStop(v2.hud)
+  assert(ns.db.focusPoint[1] == 500 and ns.db.point == nil)
+  ns.db.focus = false
+  ns.Apply()
+  assert(not M.visible(v2.plate), "switched off: no second plate")
+end)
+
+test("/lbf check: one line per fight, no names, no secrets", function()
+  local ns = fresh()
+  local b = boss()
+  M.bosses[1] = b
+  M.target, M.hp = b, 1
+  M.fire("ENCOUNTER_START", 592)
+  M.fire("PLAYER_TARGET_CHANGED")
+  fight(8, 0.05)
+  M.fire("ENCOUNTER_END", 592)
+  M.combat = false M.fire("PLAYER_REGEN_ENABLED")
+  local list = ns.db.checks
+  assert(#list == 2, "boss line and fight line, got " .. #list)
+  assert(list[1]:find("boss enc=592", 1, true) and list[1]:find("boss1[hits=8", 1, true), list[1])
+  assert(list[1]:find("same%[y=%d+ n=0 %?=0%]"), list[1])
+  for _, l in ipairs(list) do assert(type(l) == "string" and not issecretvalue(l) and not l:find("boss\"")) end
+  SlashCmdList.LASTBREATHFOREVER("check")
+  assert(#M.chat == 3)
+  for _ = 1, 40 do ns.CheckLine("x") end
+  assert(#ns.db.checks == 30, "the list stays short")
+end)
+
+test("/lbf shots: screenshots only while seconds are worked out, every 10 s", function()
+  local ns = fresh()
+  SlashCmdList.LASTBREATHFOREVER("shots")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  M.tick(15, 0)
+  assert(M.shots == 0, "no estimate: no screenshot")
+  for _ = 1, 3 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end
+  M.tick(25, 0.01)
+  assert(M.shots == 3, "about 27 s with an estimate: 3 screenshots, got " .. M.shots)
+  local _ = ns
 end)
 
 for _, t in ipairs(tests) do

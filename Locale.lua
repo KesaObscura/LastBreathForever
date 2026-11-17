@@ -44,6 +44,10 @@ T.enUS = {
   msgUnlocked = "Unlocked: drag the seconds where you want them.",
   msgReset = "Position reset.",
   warnBroken = "The game did not answer as expected: the seconds stay hidden.",
+  optFocus = "Also for the focus",
+  tipFocus = "A second frame shows the seconds of your focus. A fight locks it in place like the first one.",
+  hudFocus = "Focus",
+  help5 = "/lbf check - what the game answered in the last fights (for bug reports)",
 }
 
 T.deDE = {
@@ -85,6 +89,10 @@ T.deDE = {
   msgUnlocked = "Entsperrt: Zieh die Sekunden an die gewünschte Stelle.",
   msgReset = "Position zurückgesetzt.",
   warnBroken = "Das Spiel hat nicht wie erwartet geantwortet: Die Sekunden bleiben ausgeblendet.",
+  optFocus = "Auch für den Fokus",
+  tipFocus = "Ein zweiter Rahmen zeigt die Sekunden deines Fokusziels. Ein Kampf sperrt ihn wie den ersten.",
+  hudFocus = "Fokus",
+  help5 = "/lbf check - was das Spiel in den letzten Kämpfen geantwortet hat (für Fehlerberichte)",
 }
 
 T.ruRU = {
@@ -126,6 +134,10 @@ T.ruRU = {
   msgUnlocked = "Разблокировано: перетащи секунды куда нужно.",
   msgReset = "Положение сброшено.",
   warnBroken = "Игра ответила не так, как ожидалось: секунды остаются скрытыми.",
+  optFocus = "Также для фокуса",
+  tipFocus = "Вторая рамка показывает секунды твоего фокуса. Бой закрепляет её так же, как первую.",
+  hudFocus = "Фокус",
+  help5 = "/lbf check - что игра ответила в последних боях (для сообщений об ошибках)",
 }
 
 T.esES = {
@@ -167,6 +179,10 @@ T.esES = {
   msgUnlocked = "Desbloqueado: arrastra los segundos adonde quieras.",
   msgReset = "Posición restablecida.",
   warnBroken = "El juego no respondió como se esperaba: los segundos siguen ocultos.",
+  optFocus = "También para el foco",
+  tipFocus = "Un segundo marco muestra los segundos de tu foco. Un combate lo bloquea igual que el primero.",
+  hudFocus = "Foco",
+  help5 = "/lbf check - lo que respondió el juego en los últimos combates (para informes de errores)",
 }
 
 T.frFR = {
@@ -208,6 +224,10 @@ T.frFR = {
   msgUnlocked = "Déverrouillé : fais glisser les secondes où tu veux.",
   msgReset = "Position réinitialisée.",
   warnBroken = "Le jeu n'a pas répondu comme prévu : les secondes restent masquées.",
+  optFocus = "Aussi pour la focalisation",
+  tipFocus = "Un second cadre affiche les secondes de ta focalisation. Un combat le verrouille comme le premier.",
+  hudFocus = "Focalisation",
+  help5 = "/lbf check - ce que le jeu a répondu lors des derniers combats (pour les rapports de bug)",
 }
 
 T.ptBR = {
@@ -249,6 +269,10 @@ T.ptBR = {
   msgUnlocked = "Desbloqueado: arraste os segundos para onde quiser.",
   msgReset = "Posição redefinida.",
   warnBroken = "O jogo não respondeu como esperado: os segundos continuam ocultos.",
+  optFocus = "Também para o foco",
+  tipFocus = "Um segundo quadro mostra os segundos do seu foco. Um combate o bloqueia como o primeiro.",
+  hudFocus = "Foco",
+  help5 = "/lbf check - o que o jogo respondeu nos últimos combates (para relatos de erro)",
 }
 
 T.koKR = {
@@ -290,6 +314,10 @@ T.koKR = {
   msgUnlocked = "잠금 해제: 초를 원하는 곳으로 끌어 주세요.",
   msgReset = "위치를 초기화했습니다.",
   warnBroken = "게임이 예상과 다르게 응답했습니다. 초는 숨겨진 상태로 유지됩니다.",
+  optFocus = "주시 대상도 표시",
+  tipFocus = "두 번째 창에 주시 대상의 초를 표시합니다. 전투가 시작되면 첫 번째 창처럼 잠깁니다.",
+  hudFocus = "주시 대상",
+  help5 = "/lbf check - 최근 전투에서 게임이 응답한 내용 (오류 보고용)",
 }
 
 T.zhCN = {
@@ -331,6 +359,10 @@ T.zhCN = {
   msgUnlocked = "已解锁：把秒数拖到你想要的位置。",
   msgReset = "位置已重置。",
   warnBroken = "游戏没有按预期响应：秒数保持隐藏。",
+  optFocus = "也显示焦点目标",
+  tipFocus = "第二个框显示你的焦点目标的秒数。进入战斗会像第一个框一样锁定它。",
+  hudFocus = "焦点",
+  help5 = "/lbf check - 最近几场战斗中游戏的响应（用于错误报告）",
 }
 
 T.zhTW = {
@@ -372,6 +404,10 @@ T.zhTW = {
   msgUnlocked = "已解鎖：把秒數拖到你想要的位置。",
   msgReset = "位置已重置。",
   warnBroken = "遊戲沒有如預期回應：秒數保持隱藏。",
+  optFocus = "也顯示專注目標",
+  tipFocus = "第二個框顯示你的專注目標的秒數。進入戰鬥會像第一個框一樣鎖定它。",
+  hudFocus = "專注",
+  help5 = "/lbf check - 最近幾場戰鬥中遊戲的回應（用於錯誤回報）",
 }
 
 T.esMX = T.esES
