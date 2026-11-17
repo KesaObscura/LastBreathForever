@@ -12,6 +12,12 @@ times as "~2:30" or "~12 min"), live in combat: finish the long cast, switch tar
 potion and the cooldown for the last seconds. Solo, in a group, in dungeons and on bosses. Part
 of the Forever series with [Full Mana Forever](https://github.com/KesaObscura/FullManaForever).
 
+![Time to die: about how many seconds your target has left, next to its frame](docs/images/time-to-die-live-in-combat.png)
+
+| The last seconds in red, the focus too | Settings for the target and the focus |
+|---|---|
+| ![The last seconds in red; a second frame for the focus](docs/images/last-seconds-red-focus-frame.png) | ![The settings window: target and focus in two columns](docs/images/settings-target-focus.png) |
+
 ## Time to die: what it shows
 
 - **About how many seconds your target has left**, worked out from how fast it has been losing
