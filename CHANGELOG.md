@@ -9,6 +9,7 @@
 - An enemy that resets (evades) while you fight on starts its seconds anew.
 - In a group, other enemies than bosses wait until they have lost 8 % (10 % if already hurt): the first hits of a pull come all at once.
 - Settings in three columns: target, focus, nameplates.
+- New icon, sharper and clearer at every size, in one style with the other Forever addons.
 
 **Last Breath Forever 0.1.1**
 
