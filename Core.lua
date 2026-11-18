@@ -17,7 +17,11 @@ local LOWEST = 0.20        -- a target first hit below this share gets no estima
 -- was already hurt: 7.5 % below its band's middle). In a group or on a boss the damage
 -- needs time to build up: after 10 s and 3 % (hurt: 7.5 %), or earlier once 20 % is lost
 local LOST_SOLO, LOST_HURT = 0.05, 0.075
-local GROUP_TIME, LOST_GROUP, LOST_EARLY = 10, 0.03, 0.20
+local GROUP_TIME, LOST_GROUP, LOST_EARLY = 10, 0.03, 0.20 -- bosses
+local LOST_TRASH, LOST_TRASH_HURT = 0.08, 0.10            -- other enemies in a group
+local MIN_HITS_PLATE = 5   -- nameplates that are neither target nor focus: hits come in bursts
+local IDLE_PLATE = 4       -- such a nameplate shows nothing when its last hit is older than this
+local EVADE = 3            -- a unit out of combat with no hit for this long starts anew
 local CAP = 3600           -- the longest estimate (seconds)
 local SLOTS = 8            -- targets remembered during one fight
 local PLATES = 20          -- enemies followed by their nameplates at once
@@ -39,7 +43,8 @@ local DEFAULTS = {
   focusSame = true, -- the focus frame uses the target frame's settings
   plates = true,   -- follow enemies by their nameplates, also while they are not the target
   allPlates = true, -- seconds above every enemy's nameplate
-  plateSame = true, -- the nameplates use the target frame's settings
+  plateSame = false, -- the nameplates use the target frame's settings (own ones by default)
+  plateY = 6,      -- height of the seconds above the nameplate (pixels)
   language = "auto", -- "auto" = the game's language, else one of ns.LANGUAGES
 }
 ns.DEFAULTS = DEFAULTS
@@ -118,10 +123,10 @@ local function InitDB()
   end
   look(db.f)
   if type(db.p) ~= "table" then
-    db.p = {}
-    for _, k in ipairs(ns.LOOK) do db.p[k] = db[k] end
-    db.p.scale = 0.7 -- nameplates are small
+    -- small, plain numbers over the nameplates: only the last half minute, red at 5 s
+    db.p = { scale = 0.6, icon = false, limit = 30, urgent = 5, elite = false }
   end
+  if db.plateY < -20 or db.plateY > 60 then db.plateY = DEFAULTS.plateY end
   look(db.p)
   db.onPlate = nil -- an option of a test build
   local known = db.language == "auto"
@@ -211,6 +216,16 @@ local function Band(curve, share, yesBelow)
   curve:AddPoint(0, yesBelow and ON or OFF)
   curve:AddPoint(math.min(share, 1), yesBelow and OFF or ON)
 end
+
+-- a unit's nameplate frame, when the game shows one
+local function PlateFrame(unit)
+  local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
+  if type(get) ~= "function" then return nil end
+  local ok, f = pcall(get, unit)
+  if not ok or IsSecret(f) or type(f) ~= "table" then return nil end
+  return f
+end
+local function TargetPlateFrame() return PlateFrame("target") end
 
 local function Percent(unit, curve) return pcall(UnitHealthPercent, unit, false, curve) end
 
@@ -309,16 +324,28 @@ local function Counting(t, cfg)
   if Bool(UnitExists, t.unit) ~= true or Bool(UnitIsDeadOrGhost, t.unit) ~= false then return false end
   return Wanted(t.unit, cfg)
 end
-local function Ready(t)
-  return t.hits >= MIN_HITS and GetTime() - t.hit >= MIN_TIME
+local function Ready(t, plate)
+  return t.hits >= (plate and MIN_HITS_PLATE or MIN_HITS) and GetTime() - t.hit >= MIN_TIME
 end
 
--- a group or a boss: damage builds up over the first seconds (the tank alone, then everyone)
-local function Grouped(unit)
+-- on a boss the damage builds up over the first seconds (the tank alone, then everyone); other
+-- enemies of a group pull die too fast to wait for that
+local function Boss(unit)
   if encounter then return true end
-  local n = Plain(GetNumGroupMembers)
-  if type(n) == "number" and n > 0 then return true end
   return Plain(UnitLevel, unit) == -1 or Plain(UnitClassification, unit) == "worldboss"
+end
+local function Grouped()
+  local n = Plain(GetNumGroupMembers)
+  return type(n) == "number" and n > 0
+end
+-- how much must be lost since the start before a number shows
+local function LostNeeded(unit, full, T)
+  if Boss(unit) then
+    return T >= GROUP_TIME and (full and LOST_GROUP or LOST_HURT) or LOST_EARLY
+  elseif Grouped() then
+    return full and LOST_TRASH or LOST_TRASH_HURT
+  end
+  return full and LOST_SOLO or LOST_HURT
 end
 
 -- the target's own track: found again by its id where the game tells units apart
@@ -347,23 +374,81 @@ local function FocusChanged()
   Clear(focusTrack)
 end
 
--- which nameplate is the target and which the focus (nil: none, or the game does not say)
+-- the track a frame shows. Target, focus and a nameplate can all be the same enemy: then the
+-- count that began first (the longest) is used, in both frames alike, never two counts mixed
+-- which of two counts is used: the one that began first; on a tie (one hit seen by target,
+-- focus and nameplate at the same moment) always the same one, so every frame agrees
+local function Earlier(a, b)
+  if not (a and a.hit) then return b end
+  if not (b and b.hit) then return a end
+  if a.hit ~= b.hit then return a.hit < b.hit and a or b end
+  return a.id < b.id and a or b
+end
+
+-- a nameplate track that is free again
+local function Release(t)
+  Clear(t)
+  t.orphan = nil
+  platePool[#platePool + 1] = t
+end
+
+-- which nameplate is the target and which the focus. When the game does not say whether two
+-- units are the same, their nameplate frames tell. A count kept for a target or focus whose
+-- nameplate went away (an "orphan") goes on in the nameplate when it comes back
 local function FindPlates()
   for _, unit in ipairs({ "target", "focus" }) do
-    platesOf[unit] = nil
+    local old = platesOf[unit]
+    local found
     if db.plates and Bool(UnitExists, unit) == true then
+      local frame
       for token, t in pairs(plateTracks) do
         local r = Bool(UnitIsUnit, unit, token)
-        if r == true then plateStat.yes = plateStat.yes + 1 platesOf[unit] = t break
-        elseif r == false then plateStat.no = plateStat.no + 1
-        else plateStat.unknown = plateStat.unknown + 1 end
+        if r == nil then
+          frame = frame or PlateFrame(unit) or false
+          local f = frame and PlateFrame(token)
+          if f and f == frame then r = true end
+          plateStat.unknown = plateStat.unknown + 1
+        end
+        if r == true then plateStat.yes = plateStat.yes + 1 found = token break
+        elseif r == false then plateStat.no = plateStat.no + 1 end
       end
+    end
+    if found then
+      local t = plateTracks[found]
+      if old and old.orphan and old ~= t and Earlier(old, t) == old then
+        -- the nameplate is back: its count is the one kept meanwhile
+        old.unit, old.orphan = found, nil
+        plateTracks[found] = old
+        Release(t)
+        t = old
+      end
+      platesOf[unit] = t
+    elseif old and old.orphan then
+      platesOf[unit] = old -- no nameplate now: the kept count stays
+    else
+      platesOf[unit] = nil
     end
   end
 end
 
+-- an orphan of a unit that changed (new target / focus) is free again
+local function DropOrphan(unit)
+  local t = platesOf[unit]
+  if t and t.orphan then
+    platesOf[unit] = nil
+    local other = unit == "target" and "focus" or "target"
+    if platesOf[other] == t then
+      t.unit = other -- still the other one's count
+    else
+      Release(t)
+    end
+  end
+end
+
+local PlateRemoved
 local function PlateAdded(token)
-  if not db.plates or type(token) ~= "string" or plateTracks[token] then return end
+  if not db.plates or type(token) ~= "string" then return end
+  if plateTracks[token] then PlateRemoved(token) end -- an ADDED without the REMOVED before it
   if not Hostile(token) then return end
   local t = table.remove(platePool)
   if not t then
@@ -379,14 +464,20 @@ local function PlateAdded(token)
   if ns.PlateView then ns.PlateView(token) end
 end
 
-local function PlateRemoved(token)
+PlateRemoved = function(token)
   local t = plateTracks[token]
   if not t then return end
   plateTracks[token] = nil
-  Clear(t)
   if ns.PlateGone then ns.PlateGone(token) end
-  platePool[#platePool + 1] = t
-  for unit, x in pairs(platesOf) do if x == t then platesOf[unit] = nil end end
+  -- still the target's or the focus's count: kept (it goes on with their own hits)
+  local asT, asF = platesOf.target == t, platesOf.focus == t
+  if (asT or asF) and t.hit and Bool(UnitExists, asT and "target" or "focus") == true then
+    t.unit, t.orphan = asT and "target" or "focus", true
+    return
+  end
+  if asT then platesOf.target = nil end
+  if asF then platesOf.focus = nil end
+  Release(t)
 end
 
 local function PlateHit(token)
@@ -399,9 +490,35 @@ end
 local function ForgetAll()
   for _, t in ipairs(targetSlots) do Clear(t) t.used = 0 end
   for _, t in pairs(plateTracks) do Clear(t) end
+  for unit in pairs(platesOf) do DropOrphan(unit) end
   Clear(focusTrack)
   useCount = 0
   cur = nil
+end
+
+-- the end of the player's fight (also Feign Death or Vanish): only the counts of units that are
+-- no longer fighting are forgotten
+local function FightEnded()
+  local function done(t)
+    return t.hit and Bool(UnitAffectingCombat, t.unit) ~= true
+  end
+  for _, t in ipairs(targetSlots) do
+    if t ~= cur then Clear(t) t.used = 0 elseif done(t) then Clear(t) end
+  end
+  for _, t in pairs(plateTracks) do if done(t) then Clear(t) end end
+  for unit, t in pairs(platesOf) do if t.orphan and done(t) then DropOrphan(unit) end end
+  if done(focusTrack) then Clear(focusTrack) end
+end
+
+-- an enemy that reset (evade) while the player fights on: out of combat and no hit for a while
+local function Evaded(t, now)
+  return t and t.hit and now - (t.lastHit or t.hit) > EVADE and Bool(UnitAffectingCombat, t.unit) == false
+end
+local function ForgetEvaded()
+  local now = GetTime()
+  if Evaded(cur, now) then Clear(cur) end
+  if Evaded(focusTrack, now) then Clear(focusTrack) end
+  for _, t in pairs(plateTracks) do if Evaded(t, now) then Clear(t) end end
 end
 
 -- is `a` the same unit as `b`? true / false, or nil when the game does not say
@@ -414,31 +531,37 @@ local function Same(a, b)
   return r
 end
 
--- the track a frame shows. Target, focus and a nameplate can all be the same enemy: then the
--- count that began first (the longest) is used, in both frames alike, never two counts mixed
--- which of two counts is used: the one that began first; on a tie (one hit seen by target,
--- focus and nameplate at the same moment) always the same one, so every frame agrees
-local function Earlier(a, b)
-  if not (a and a.hit) then return b end
-  if not (b and b.hit) then return a end
-  if a.hit ~= b.hit then return a.hit < b.hit and a or b end
-  return a.id < b.id and a or b
+-- one count per enemy, picked once per update: target, focus and their nameplates read it
+-- from here, so the same enemy shows the same number everywhere by construction
+local chosen = {}
+local function Pick(a, b)
+  if (a and a.hit) or (b and b.hit) then return Earlier(a, b) end
+  return a or b
 end
-
-local function TrackFor(unit)
-  local plate = type(unit) == "string" and unit:find("^nameplate") and plateTracks[unit] or nil
-  local isT, isF
-  if plate then
-    isT, isF = platesOf.target == plate, platesOf.focus == plate
-  else
-    isT, isF = unit == "target", unit == "focus"
+local function SameTargetFocus()
+  if Bool(UnitExists, "focus") ~= true or Bool(UnitExists, "target") ~= true then return false end
+  local r = Same("target", "focus")
+  if r ~= nil then return r end
+  if platesOf.target and platesOf.target == platesOf.focus then return true end
+  local a = PlateFrame("target")
+  return a ~= nil and a == PlateFrame("focus")
+end
+local function Resolve()
+  local t = Pick(cur, platesOf.target)
+  local f = Pick(focusTrack, platesOf.focus)
+  chosen.same = SameTargetFocus()
+  if chosen.same then
+    local x = Pick(t, f)
+    t, f = x, x
   end
-  local same = (isT or isF) and Same("target", "focus") == true
-  local best = plate
-  if isT or same then best = Earlier(best, cur) best = Earlier(best, platesOf.target) end
-  if isF or same then best = Earlier(best, focusTrack) best = Earlier(best, platesOf.focus) end
-  -- nothing counted yet: the frame's own track, so it shows the "counting" sign
-  return best or (isF and focusTrack) or (isT and cur) or plate
+  chosen.target, chosen.focus = t, f
+end
+local function TrackFor(unit)
+  if unit == "target" or unit == "focus" then return chosen[unit] end
+  local plate = plateTracks[unit]
+  if plate and plate == platesOf.target then return chosen.target end
+  if plate and plate == platesOf.focus then return chosen.focus end
+  return plate
 end
 
 ------------------------------------------------------------------------
@@ -463,15 +586,6 @@ local function Cfg(v)
 end
 ns.Cfg = Cfg
 
--- a unit's nameplate frame, when the game shows one
-local function PlateFrame(unit)
-  local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
-  if type(get) ~= "function" then return nil end
-  local ok, f = pcall(get, unit)
-  if not ok or IsSecret(f) or type(f) ~= "table" then return nil end
-  return f
-end
-local function TargetPlateFrame() return PlateFrame("target") end
 
 local function Place(v)
   local hud = v.hud
@@ -483,7 +597,7 @@ local function Place(v)
   -- always there); its own place while unlocked or without one
   local plate = v.plateView and PlateFrame(v.unit) or nil
   v.anchor = plate
-  if plate and pcall(hud.SetPoint, hud, "BOTTOM", plate, "TOP", 0, 2) then
+  if plate and pcall(hud.SetPoint, hud, "BOTTOM", plate, "TOP", 0, db.plateY / scale) then
     return
   end
   v.anchor = nil
@@ -652,12 +766,20 @@ local function Enabled(v)
   return v.unit == "target" or db.focus
 end
 
+local ApplyView
 function ns.Apply()
   if not db.plates then
     for token in pairs(plateTracks) do PlateRemoved(token) end
   end
-  local unlocked = not db.locked
-  local function ApplyView(v)
+  for _, v in ipairs(views) do ApplyView(v) end
+  for _, v in pairs(plateViews) do ApplyView(v) end
+  lockBtn:SetShown(not db.locked)
+  setBtn:SetShown(not db.locked)
+end
+
+-- the look of one frame (size, icon, where the texts stand)
+ApplyView = function(v)
+    local unlocked = not db.locked
     local cfg = Cfg(v)
     local point, x = "CENTER", 0
     if cfg.icon then point, x = "LEFT", 34 end -- with the icon the seconds stand right of it
@@ -692,16 +814,11 @@ function ns.Apply()
       end
     end
     if not on or unlocked then HideCells(v) end
-  end
-  for _, v in ipairs(views) do ApplyView(v) end
-  for _, v in pairs(plateViews) do
-    ApplyView(v)
-    v.plate:Hide()
-    v.chrome:Hide()
-    v.hud:EnableMouse(false)
-  end
-  lockBtn:SetShown(unlocked)
-  setBtn:SetShown(unlocked)
+    if v.plateView then
+      v.plate:Hide()
+      v.chrome:Hide()
+      v.hud:EnableMouse(false)
+    end
 end
 
 function ns.SetLocked(locked, quiet)
@@ -731,16 +848,42 @@ function ns.OnLanguageChanged()
   ns.Apply()
 end
 
+-- frames above nameplates are reused: at most PLATES are ever made, a few of them before a fight
+local freeViews, builtPlates = {}, 0
+local PREBUILT = 8
 function ns.PlateView(token)
   if plateViews[token] then return end
-  local v = BuildView(token, nil, 0, nil, true)
+  local v = table.remove(freeViews)
+  if not v then
+    if builtPlates >= PLATES then return end
+    builtPlates = builtPlates + 1
+    v = BuildView(token, nil, 0, nil, true)
+  end
+  v.unit, v.anchor, v.longAt = token, nil, nil
   plateViews[token] = v
-  ns.Apply()
+  ApplyView(v)
 end
 function ns.PlateGone(token)
   local v = plateViews[token]
-  if v then Attach(v, nil) v.anchor = nil end
+  if not v then return end
+  Attach(v, nil)
+  v.anchor = nil
+  v.hud:ClearAllPoints()
+  v.hud:Hide()
+  plateViews[token] = nil
+  freeViews[#freeViews + 1] = v
 end
+local function Prebuild()
+  if not (db.plates and db.allPlates) then return end
+  while builtPlates < PREBUILT do
+    builtPlates = builtPlates + 1
+    local v = BuildView("nameplate0", nil, 0, nil, true)
+    v.hud:Hide()
+    freeViews[#freeViews + 1] = v
+  end
+end
+ns.Prebuild = Prebuild
+function ns.PlateViewsBuilt() return builtPlates end
 
 local function BuildAll()
   root = CreateFrame("Frame", nil, UIParent)
@@ -763,51 +906,76 @@ end
 ------------------------------------------------------------------------
 -- update
 ------------------------------------------------------------------------
--- the seconds of one band of a view: text, "Show from", red or white
-local function ShowBand(v, t, k, T, cfg, long)
-  local b, c, unit = BANDS[k], v.cells[k], t.unit
+-- the cells of one band in all frames of a job, and the opacity / text the game gave, set on all
+local cs, ncs = {}, 0
+local function Alpha(field, a)
+  for i = 1, ncs do
+    local r = cs[i][field]
+    if not pcall(r.SetAlpha, r, a) then return false end
+  end
+  return true
+end
+local function Op(field, unit, curve)
+  local ok, colour = Percent(unit, curve)
+  if not ok or type(colour) ~= "table" then return false end
+  local okA, _, _, _, a = pcall(colour.GetRGBA, colour)
+  return okA and Alpha(field, a)
+end
+local function Text(field, text)
+  for i = 1, ncs do cs[i][field]:SetText(text) end
+end
+
+-- the share of SECONDS[i] for the current T is start * fac[i]
+local fac = {}
+
+-- the seconds of one band: text, "Show from", red or white. plate: the frames above nameplates
+-- (seconds only, no "counting" sign)
+local function ShowBand(t, k, T, cfg, long, plate)
+  local b, unit = BANDS[k], t.unit
+  local start = b.start
+  local limit = cfg.limit > 0 and cfg.limit or CAP
+  if plate and limit > LONG then limit = LONG end
+  -- the seconds: points up to the first one past what can be shown
+  local upTo = math.min(limit, LONG)
   ttdCurve:ClearPoints()
   ttdCurve:AddPoint(0, 0)
   for i = 1, #SECONDS do
-    local s = SECONDS[i]
-    ttdCurve:AddPoint(ShareAt(s, T, b.start), s)
+    ttdCurve:AddPoint(start * fac[i], SECONDS[i])
+    if SECONDS[i] > upTo then break end
   end
   ttdCurve:AddPoint(1, CAP)
   local ok, seconds = Percent(unit, ttdCurve)
   if not ok then return false end
   local okT, text = pcall(string.format, L.fmtSec, seconds)
   if not okT then return false end
-  c.textN:SetText(text)
-  c.textU:SetText(text)
+  Text("textN", text)
+  Text("textU", text)
   -- "Show from": hidden while more than the limit is left, and until the unit has lost
   -- enough for an estimate; while it waits for that, the dim "counting" sign
-  local lost
-  if Grouped(unit) then
-    lost = T >= GROUP_TIME and (b.full and LOST_GROUP or LOST_HURT) or LOST_EARLY
+  local top = start - LostNeeded(unit, b.full, T)
+  Band(limitCurve, math.min(ShareAt(limit, T, start), top), true)
+  if not Op("num", unit, limitCurve) then return false end
+  if plate then
+    if not Alpha("wait", 0) then return false end
   else
-    lost = b.full and LOST_SOLO or LOST_HURT
+    Band(waitCurve, top, false)
+    if not Op("wait", unit, waitCurve) then return false end
   end
-  local top = b.start - lost
-  local limit = cfg.limit > 0 and cfg.limit or CAP
-  Band(limitCurve, math.min(ShareAt(limit, T, b.start), top), true)
-  if not Opacity(c.num, unit, limitCurve) then return false end
-  Band(waitCurve, top, false)
-  if not Opacity(c.wait, unit, waitCurve) then return false end
   -- which text: seconds below LONG, "~2:30" up to MINUTES, "~12 min" above
   if limit > LONG then
-    local hLong, hMin = ShareAt(LONG, T, b.start), ShareAt(MINUTES, T, b.start)
+    local hLong, hMin = ShareAt(LONG, T, start), ShareAt(MINUTES, T, start)
     Band(formCurve, hLong, true)
-    if not Opacity(c.sec, unit, formCurve) then return false end
+    if not Op("sec", unit, formCurve) then return false end
     formCurve:ClearPoints()
     formCurve:AddPoint(0, OFF)
     formCurve:AddPoint(hLong, ON)
     formCurve:AddPoint(math.min(hMin, 1), OFF)
-    if not Opacity(c.mss, unit, formCurve) then return false end
+    if not Op("mss", unit, formCurve) then return false end
     if limit > MINUTES then
       Band(formCurve, hMin, false)
-      if not Opacity(c.mins, unit, formCurve) then return false end
-    else
-      c.mins:SetAlpha(0)
+      if not Op("mins", unit, formCurve) then return false end
+    elseif not Alpha("mins", 0) then
+      return false
     end
     -- the minutes texts change at most every 10 s: written once a second
     if long then
@@ -816,8 +984,8 @@ local function ShowBand(v, t, k, T, cfg, long)
       tenCurve:ClearPoints()
       minCurve:AddPoint(0, 1)
       tenCurve:AddPoint(0, 3)
-      for D = 100, MINUTES - 10, 10 do
-        local h = ShareAt(D - 5, T, b.start)
+      for D = 100, math.min(MINUTES - 10, limit + 10), 10 do
+        local h = ShareAt(D - 5, T, start)
         minCurve:AddPoint(h, math.floor(D / 60))
         tenCurve:AddPoint(h, (D % 60) / 10)
       end
@@ -826,119 +994,146 @@ local function ShowBand(v, t, k, T, cfg, long)
       if not (okM and okD) then return false end
       local okL, txt = pcall(string.format, L.fmtMss, m, d)
       if not okL then return false end
-      c.textL:SetText(txt)
+      Text("textL", txt)
       if limit > MINUTES then
         -- "~12 min": rounded to the minute
         minCurve:ClearPoints()
         minCurve:AddPoint(0, MINUTES / 60)
-        for M = MINUTES / 60 + 1, CAP / 60 do
-          minCurve:AddPoint(ShareAt(M * 60 - 30, T, b.start), M)
+        for M = MINUTES / 60 + 1, math.min(CAP / 60, math.floor(limit / 60) + 1) do
+          minCurve:AddPoint(ShareAt(M * 60 - 30, T, start), M)
         end
         local okN, n = Percent(unit, minCurve)
         if not okN then return false end
         local okT2, txt2 = pcall(string.format, L.fmtMin, n)
         if not okT2 then return false end
-        c.textM:SetText(txt2)
+        Text("textM", txt2)
       end
     end
-  else
-    c.sec:SetAlpha(1)
-    c.mss:SetAlpha(0)
-    c.mins:SetAlpha(0)
+  elseif not (Alpha("sec", 1) and Alpha("mss", 0) and Alpha("mins", 0)) then
+    return false
   end
   -- "Last seconds in red": the red text below the mark, the white one above it
   if cfg.urgent > 0 then
-    local share = ShareAt(cfg.urgent, T, b.start)
+    local share = ShareAt(cfg.urgent, T, start)
     Band(urgentCurve, share, true)
     Band(normalCurve, share, false)
-    if not (Opacity(c.textU, unit, urgentCurve) and Opacity(c.textN, unit, normalCurve)) then return false end
-  else
-    c.textU:SetAlpha(0)
-    c.textN:SetAlpha(1)
+    if not (Op("textU", unit, urgentCurve) and Op("textN", unit, normalCurve)) then return false end
+  elseif not (Alpha("textU", 0) and Alpha("textN", 1)) then
+    return false
   end
   return true
 end
 
-local function ShowView(v, t, cfg)
+-- a job: one count shown in all frames that have the same settings. The game is asked once per
+-- job, so the same enemy costs the same however many frames show it, and shows the same number
+local jobs, nJobs = {}, 0
+local function AddJob(v, t)
+  Attach(v, t)
+  local cfg, plate = Cfg(v), v.plateView and true or false
+  for i = 1, nJobs do
+    local j = jobs[i]
+    if j.t == t and j.cfg == cfg and j.plate == plate then
+      j.n = j.n + 1
+      j.views[j.n] = v
+      return
+    end
+  end
+  nJobs = nJobs + 1
+  local j = jobs[nJobs]
+  if not j then j = { views = {} } jobs[nJobs] = j end
+  j.t, j.cfg, j.plate, j.n = t, cfg, plate, 1
+  j.views[1] = v
+end
+
+local function HideJob(j)
+  for i = 1, j.n do HideCells(j.views[i]) end
+end
+
+local function RunJob(j)
+  local t, cfg = j.t, j.cfg
+  if not Counting(t, cfg) then return HideJob(j) end
+  -- enemies that are neither target nor focus wait for a few more hits
+  local own = j.plate and t ~= chosen.target and t ~= chosen.focus
+  if not Ready(t, own) then
+    if j.plate then return HideJob(j) end
+    -- a few hits or seconds still missing: only the "counting" sign
+    for i = 1, j.n do
+      for _, c in ipairs(j.views[i].cells) do c.num:SetAlpha(0) c.wait:SetAlpha(1) c.frame:Show() end
+    end
+    return
+  end
   -- the first hit already took its share of health but no time: count one average gap
   -- between hits before it
-  local start = t.hit - (t.lastHit - t.hit) / (t.hits - 1)
-  local T = GetTime() - start
-  t.asked = t.asked + 1
   local now = GetTime()
-  local long = now - (v.longAt or 0) >= 1
-  if long then v.longAt = now end
+  local start = t.hit - (t.lastHit - t.hit) / (t.hits - 1)
+  local T = now - start
+  for i = 1, #SECONDS do fac[i] = SECONDS[i] / (SECONDS[i] + T) end
+  local long = false
+  for i = 1, j.n do
+    local v = j.views[i]
+    if now - (v.longAt or 0) >= 1 then long = true end
+  end
+  if long then for i = 1, j.n do j.views[i].longAt = now end end
+  t.asked = t.asked + 1
+  ncs = j.n
   for _, k in ipairs(t.bands) do
-    if not ShowBand(v, t, k, T, cfg, long) then
+    for i = 1, j.n do cs[i] = j.views[i].cells[k] end
+    if not ShowBand(t, k, T, cfg, long, j.plate) then
       t.failed = t.failed + 1
-      return false
+      HideJob(j)
+      Broken()
+      return
     end
   end
-  return true
-end
-
--- the seconds of one view from one track (or nothing)
-local function ShowFrom(v, t)
-  Attach(v, t)
-  local cfg = Cfg(v)
-  if Counting(t, cfg) then
-    if Ready(t) then
-      if not ShowView(v, t, cfg) then
-        HideCells(v)
-        Broken()
-        return
-      end
-    else
-      -- a few hits or seconds still missing: only the "counting" sign
-      for _, c in ipairs(v.cells) do c.num:SetAlpha(0) c.wait:SetAlpha(1) end
-    end
-    for _, c in ipairs(v.cells) do c.frame:Show() end
-  else
-    HideCells(v)
+  for i = 1, j.n do
+    for _, c in ipairs(j.views[i].cells) do c.frame:Show() end
   end
 end
 
-local tickN = 0
 local plateTurn = 0
 local PLATES_PER_TICK = 2
+local list = {}
 local function Update()
-  tickN = tickN + 1
-  -- target and focus: each in its own frame. The same enemy gets the same count everywhere
+  ForgetEvaded()
+  Resolve()
+  nJobs = 0
+  -- target and focus: each in its own frame
   for _, v in ipairs(views) do
     local t = nil
     if db.locked and Enabled(v) and Hostile(v.unit) then t = TrackFor(v.unit) end
-    ShowFrom(v, t)
+    if t then AddJob(v, t) else Attach(v, nil) HideCells(v) end
   end
-  -- every enemy's nameplate, also the target's and the focus's. To keep the cost of a big pull
-  -- low, at most PLATES_PER_TICK nameplates are worked out per update, in turn (with 10
-  -- nameplates each one about once a second); the others keep their last numbers meanwhile
-  local list = {}
+  -- the seconds above nameplates. The target's and the focus's on every update (the same
+  -- number as their frames at all times); the others, to keep a big pull cheap, at most
+  -- PLATES_PER_TICK per update in turn, keeping their last numbers meanwhile. Enemies that died,
+  -- went away or have not been hit for a while show nothing, at once
+  local now = GetTime()
+  local n = 0
   for token, v in pairs(plateViews) do
     local t = plateTracks[token] and TrackFor(token)
-    if t and (t == views[1].track or t == views[2].track) then
-      -- the target's and the focus's nameplates on every update, like their frames: the same
-      -- number in both places at all times
-      local f = PlateFrame(token)
-      if f and f ~= v.anchor then Place(v) end
-      if db.locked and Enabled(v) and f then ShowFrom(v, t) else Attach(v, nil) end
+    local f = t and db.locked and Enabled(v) and PlateFrame(token)
+    if not f or not Counting(t, Cfg(v)) then
+      Attach(v, nil)
     else
-      list[#list + 1] = token
+      if f ~= v.anchor then Place(v) end
+      if t == chosen.target or t == chosen.focus then
+        AddJob(v, t)
+      elseif now - (t.lastHit or 0) > IDLE_PLATE then
+        Attach(v, nil)
+      else
+        n = n + 1
+        list[n] = token
+      end
     end
   end
+  for i = n + 1, #list do list[i] = nil end
   table.sort(list)
-  local n = #list
-  for i = 1, math.min(n, PLATES_PER_TICK) do
+  for _ = 1, math.min(n, PLATES_PER_TICK) do
     plateTurn = plateTurn % n + 1
     local token = list[plateTurn]
-    local v = plateViews[token]
-    local f = plateTracks[token] and PlateFrame(token)
-    if f and f ~= v.anchor then Place(v) end
-    if db.locked and Enabled(v) and f then ShowFrom(v, TrackFor(token)) else Attach(v, nil) end
+    AddJob(plateViews[token], TrackFor(token))
   end
-  -- nameplates that went away or a lock change: hidden at once, not in their turn
-  for token, v in pairs(plateViews) do
-    if not (db.locked and Enabled(v) and plateTracks[token]) then Attach(v, nil) end
-  end
+  for i = 1, nJobs do RunJob(jobs[i]) end
 end
 ns.Update = Update
 
@@ -1012,8 +1207,17 @@ local function OnEvent(_, event, a1)
     ready = InitCurves()
     if not ready then Broken() end
     ns.Apply()
-    Listen("target", function() Hit(cur) end)
-    Listen("focus", function() Hit(focusTrack) end)
+    -- a count kept while the nameplate is away goes on with the target's or focus's own hits
+    Listen("target", function()
+      Hit(cur)
+      local o = platesOf.target
+      if o and o.orphan and o ~= cur then Hit(o) end
+    end)
+    Listen("focus", function()
+      Hit(focusTrack)
+      local o = platesOf.focus
+      if o and o.orphan and o ~= focusTrack and o ~= platesOf.target then Hit(o) end
+    end)
     -- hits on enemies with a nameplate
     local pf = CreateFrame("Frame")
     pf:SetScript("OnEvent", function(_, _, u, action)
@@ -1032,9 +1236,11 @@ local function OnEvent(_, event, a1)
   elseif event == "PLAYER_REGEN_ENABLED" then
     inCombat = false
     CheckLine("fight")
-    ForgetAll()
-    TargetChanged()
+    FightEnded()
+    if not cur then TargetChanged() end
+    Prebuild()
   elseif event == "PLAYER_TARGET_CHANGED" then
+    DropOrphan("target")
     TargetChanged()
     FindPlates()
     if views[1] then Place(views[1]) end
@@ -1045,6 +1251,7 @@ local function OnEvent(_, event, a1)
   elseif event == "NAME_PLATE_UNIT_REMOVED" then
     PlateRemoved(a1)
   elseif event == "PLAYER_FOCUS_CHANGED" then
+    DropOrphan("focus")
     FocusChanged()
     FindPlates()
   elseif event == "ENCOUNTER_START" then
@@ -1057,6 +1264,7 @@ local function OnEvent(_, event, a1)
     if inCombat and not db.locked then ns.SetLocked(true, true) end
     ForgetAll()
     TargetChanged()
+    if not inCombat then Prebuild() end
   end
 end
 ev:SetScript("OnEvent", OnEvent)

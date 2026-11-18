@@ -31,7 +31,8 @@ of the Forever series with [Full Mana Forever](https://github.com/KesaObscura/Fu
 - **Follows enemies by their nameplates**, also while they are not your target: take one into
   your target and its seconds are there at once. Bosses and adds alike, also in dungeons.
 - **Seconds on every enemy's nameplate**, also the target's and the focus's: see which mob of a
-  pull goes down first. The same enemy shows the same number everywhere.
+  pull goes down first. The same enemy shows the same number everywhere. Small and only for the
+  last 30 s by default; size, height above the nameplate and the rest can be set.
 - **Last seconds in red**: from 5 s up to a minute before the end (10 s by default), for the
   cooldowns, trinkets and potions you keep for the finish.
 - **Focus frame** (optional): a second frame with the seconds of your focus, with the target

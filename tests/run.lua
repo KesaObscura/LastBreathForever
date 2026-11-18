@@ -303,7 +303,12 @@ test("settings: every control has a tooltip, also the greyed-out ones", function
   ns.ToggleOptions()
   local win = ns.optionsWindow
   assert(win and win:IsShown())
-  assert(#win.controls == 43, "controls: " .. #win.controls)
+  assert(#win.controls == 46, "controls: " .. #win.controls)
+  local py = win.widgets.plateY
+  py.plus.scripts.OnClick(py.plus)
+  assert(ns.db.plateY == 8, "height: steps of 2")
+  for _ = 1, 40 do py.plus.scripts.OnClick(py.plus) end
+  assert(ns.db.plateY == 60 and not py.plus:IsEnabled(), "height: up to 60")
   for i, c in ipairs(win.controls) do
     assert(c.scripts.OnEnter and c.tipTitle and c.tipText and c.tipText ~= "", "control " .. i .. " has no tooltip")
     c.scripts.OnEnter(c)
@@ -784,7 +789,7 @@ local function plateText(ns, token)
 end
 
 test("target, focus and nameplates all on: seconds everywhere, the same mob shows the same number", function()
-  local ns = fresh({ db = { limit = 0, focus = true }, setup = function(m) m.secretGuid = true m.group = 5 end })
+  local ns = fresh({ db = { limit = 0, focus = true, plateSame = true }, setup = function(m) m.secretGuid = true m.group = 5 end })
   local b, a1, a2 = mob("boss"), mob("add1"), mob("add2")
   M.showPlate(1, b) M.showPlate(2, a1) M.showPlate(3, a2)
   M.target, M.hp = a1, 1 M.fire("PLAYER_TARGET_CHANGED")
@@ -800,7 +805,7 @@ test("target, focus and nameplates all on: seconds everywhere, the same mob show
   local function num(t) return t and tonumber(t:match("%d+")) end
   local tgt, foc = seconds(ns), focusSeconds(ns)
   local p1, p2, p3 = num(plateText(ns, "nameplate1")), num(plateText(ns, "nameplate2")), num(plateText(ns, "nameplate3"))
-  assert(tgt and foc and p1 and p2 and p3, "all five numbers on screen")
+  assert(tgt and foc and p1 and p2 and p3, "all five numbers on screen: " .. table.concat({ tostring(tgt), tostring(foc), tostring(p1), tostring(p2), tostring(p3) }, " "))
   assert(p2 == tgt, "the target's nameplate shows the target's number: " .. p2 .. " / " .. tgt)
   assert(p1 == foc, "the focus's nameplate shows the focus's number: " .. p1 .. " / " .. foc)
   assert(ns.plateViews.nameplate2.track == ns.views[1].track, "one count for the target")
@@ -830,16 +835,17 @@ end)
 
 test("nameplates with their own settings", function()
   local ns = fresh({ db = { limit = 0 } })
-  assert(ns.db.plateSame == true and ns.db.p.scale == 0.7, "same as the target by default; own size 70 %")
+  assert(ns.db.plateSame == false and ns.db.p.scale == 0.6 and ns.db.p.limit == 30 and ns.db.p.urgent == 5
+    and ns.db.p.icon == false, "own settings by default: small, no icon, from 30 s, red from 5 s")
   local b = mob("x") M.showPlate(1, b)
   M.combat = true M.fire("PLAYER_REGEN_DISABLED")
-  for _ = 1, 5 do b.hp = b.hp - 0.012 M.hit(b) M.tick(1, 0) end
-  M.tick(0.4, 0)
-  assert(plateText(ns, "nameplate1"), "always: shown")
-  ns.db.plateSame = false ns.db.p.limit = 30 ns.Apply()
+  for _ = 1, 6 do b.hp = b.hp - 0.012 M.hit(b) M.tick(1, 0) end
   M.tick(0.4, 0)
   assert(not plateText(ns, "nameplate1"), "own rule 30 s: hidden at about 80 s")
-  assert(ns.plateViews.nameplate1.cells[1].frame:GetScale() == 0.7)
+  assert(ns.plateViews.nameplate1.cells[1].frame:GetScale() == 0.6)
+  ns.db.plateSame = true ns.Apply()
+  b.hp = b.hp - 0.03 M.hit(b) M.tick(0.4, 0)               -- about 65 s left
+  assert(plateText(ns, "nameplate1"), "the target's rule (always): shown")
 end)
 
 test("settings: the nameplates column greys out while it follows the target or is off", function()
@@ -851,15 +857,109 @@ test("settings: the nameplates column greys out while it follows the target or i
       if (x.kind == "Button" or x.kind == "CheckButton") and x:IsEnabled() then return true end
     end
   end
-  assert(w.allPlates:IsEnabled() and not anyEnabled(), "same as the target: rows greyed")
-  w.plateSame.checked = false w.plateSame.scripts.OnClick(w.plateSame)
-  assert(anyEnabled(), "own settings: rows usable")
+  assert(w.allPlates:IsEnabled() and anyEnabled(), "own settings by default: rows usable")
+  w.plateSame.checked = true w.plateSame.scripts.OnClick(w.plateSame)
+  assert(not anyEnabled(), "same as the target: rows greyed")
   w.plates.checked = false w.plates.scripts.OnClick(w.plates)
   assert(not w.allPlates:IsEnabled() and not w.plateSame:IsEnabled() and not anyEnabled(), "not following: all greyed")
 end)
 
+test("the game keeps 'same unit' to itself: target and its nameplate still show one number", function()
+  local ns = fresh({ db = { limit = 0, plateSame = true }, setup = function(m) m.secretGuid = true m.secretSame = true end })
+  local b, x = mob("boss"), mob("other")
+  M.showPlate(1, x) M.showPlate(2, b)
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 4 do b.hp = b.hp - 0.03 M.hit(b) M.tick(1, 0) end   -- counted by its nameplate first
+  M.target, M.hp = b, b.hp M.fire("PLAYER_TARGET_CHANGED")
+  for _ = 1, 4 do b.hp = b.hp - 0.03 M.hp = b.hp M.hit(b) M.tick(1, 0) end
+  M.tick(0.4, 0)
+  local function num(t) return t and tonumber(t:match("%d+")) end
+  assert(ns.views[1].track == ns.plateViews.nameplate2.track, "one count")
+  assert(seconds(ns) and seconds(ns) == num(plateText(ns, "nameplate2")), "the same number")
+end)
+
+test("the target's nameplate goes away and comes back: its count goes on, no jump", function()
+  local ns = fresh({ db = { limit = 0 }, setup = function(m) m.secretGuid = true end })
+  local b = mob("boss")
+  M.showPlate(1, b)
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 6 do b.hp = b.hp - 0.02 M.hit(b) M.tick(1, 0) end     -- its nameplate counts first
+  M.target, M.hp = b, b.hp M.fire("PLAYER_TARGET_CHANGED")
+  for _ = 1, 4 do b.hp = b.hp - 0.02 M.hp = b.hp M.hit(b) M.tick(1, 0) end
+  M.tick(0.2, 0)
+  local before = seconds(ns)
+  local kept = ns.views[1].track
+  M.hidePlate(1)                                                   -- the camera turned away
+  for _ = 1, 3 do b.hp = b.hp - 0.02 M.hp = b.hp M.hit(b) M.tick(1, 0) end
+  M.tick(0.2, 0)
+  assert(ns.views[1].track == kept, "the same count without the nameplate")
+  near(seconds(ns), before - 3, 3, "no jump")
+  M.showPlate(1, b)
+  b.hp = b.hp - 0.02 M.hp = b.hp M.hit(b) M.tick(0.4, 0)
+  assert(ns.views[1].track == kept and ns.plateViews.nameplate1.track == kept, "the nameplate takes the kept count")
+  -- a new target: the kept count is let go
+  M.target = mob("new") M.hp = 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.tick(0.2, 0)
+end)
+
+test("an enemy that resets (evade) starts its count anew", function()
+  local ns = fresh({ db = { limit = 0 } })
+  fight(8, 0.03)
+  assert(shown(ns))
+  M.target.evaded = true M.hp = 1
+  M.tick(4, 0)                                                     -- no hits, out of combat
+  assert(not shown(ns), "nothing after the reset")
+  M.target.evaded = nil
+  for _ = 1, 2 do M.hp = M.hp - 0.03 M.hit() M.tick(1, 0) end
+  assert(not shown(ns), "a new count waits again")
+end)
+
+test("group: other enemies need 8 % lost before a number", function()
+  local ns = fresh({ db = { limit = 0 }, setup = function(m) m.group = 5 end })
+  M.target = mob("trash") M.target.class = "normal" M.hp = 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 6 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end     -- 94 %
+  assert(not shown(ns), "6 % lost: not yet")
+  for _ = 1, 4 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end     -- 90 %
+  assert(shown(ns), "10 % lost: shown")
+end)
+
+test("nameplates: frames are reused, never more than 20; dead and idle enemies show nothing", function()
+  local ns = fresh({ db = { limit = 0, plateSame = true } })
+  assert(ns.PlateViewsBuilt() == 8, "a few made before the fight")
+  local ms = {}
+  for i = 1, 20 do ms[i] = mob("m" .. i) M.showPlate(i, ms[i]) end
+  for _ = 1, 3 do
+    for i = 1, 20 do M.hidePlate(i) end
+    for i = 1, 20 do M.showPlate(i, ms[i]) end
+  end
+  assert(ns.PlateViewsBuilt() == 20, "reused: " .. ns.PlateViewsBuilt())
+  for i = 21, 25 do M.showPlate(i, mob("m" .. i)) end
+  assert(ns.PlateViewsBuilt() == 20 and not ns.plateViews.nameplate21, "never more than 20")
+  local a, d = ms[1], ms[2]
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 8 do
+    a.hp = a.hp - 0.03 M.hit(a) d.hp = d.hp - 0.03 M.hit(d) M.tick(1, 0)
+  end
+  M.tick(2, 0)
+  assert(plateText(ns, "nameplate1") and plateText(ns, "nameplate2"), "both shown")
+  d.dead = true M.tick(0.2, 0)
+  assert(not plateText(ns, "nameplate2"), "dead: hidden at once")
+  M.tick(4, 0)
+  assert(not plateText(ns, "nameplate1"), "no hit for a while: hidden")
+end)
+
+test("nameplates: the seconds stand at the chosen height above the nameplate", function()
+  local ns = fresh({ db = { plateY = 20 } })
+  M.showPlate(1, mob("x"))
+  local v = ns.plateViews.nameplate1
+  ns.Apply()
+  local p = v.hud.point
+  assert(p and p[1] == "BOTTOM" and p[3] == "TOP" and math.abs(p[5] * ns.db.p.scale - 20) < 1e-6, "20 above")
+end)
+
 for _, t in ipairs(tests) do
-  local ok, err = pcall(t.fn)
+  local c0 = os.clock() local ok, err = pcall(t.fn) if os.getenv("TIMES") then io.write(string.format("%6.2f ", os.clock() - c0)) end
   if ok then io.write("ok   ", t.name, "\n") else failed = failed + 1 io.write("FAIL ", t.name, "\n     ", tostring(err), "\n") end
 end
 io.write(string.format("\n%d tests, %d failed\n", #tests, failed))

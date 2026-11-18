@@ -1,8 +1,11 @@
 **Last Breath Forever 0.2.0**
 
 - **Follows enemies by their nameplates**, also while they are not your target: take one into your target and its seconds are there at once. Bosses and adds alike, also in dungeons when you switch between them. Needs the enemy nameplates switched on (on by default, can be switched off).
-- **Seconds on every enemy's nameplate**, also the target's and the focus's, with the target's settings or their own: see which mob of a pull goes down first.
-- Target, focus and nameplate can be the same enemy: it then shows the same number everywhere.
+- **Seconds on every enemy's nameplate**, also the target's and the focus's: see which mob of a pull goes down first. Small and only for the last 30 s by default, with their own settings or the target's; the height above the nameplate can be set.
+- Enemies that are neither target nor focus show their seconds only while they are being hit, and nothing once they die.
+- Target, focus and nameplate can be the same enemy: it then shows the same number everywhere, also when its nameplate goes out of view for a moment.
+- An enemy that resets (evades) while you fight on starts its seconds anew.
+- In a group, other enemies than bosses wait until they have lost 8 % (10 % if already hurt): the first hits of a pull come all at once.
 - Settings in three columns: target, focus, nameplates.
 
 **Last Breath Forever 0.1.1**

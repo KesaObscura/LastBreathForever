@@ -12,7 +12,7 @@ A small frame next to your target shows **"~12 s"** (longer times as "~2:30" or 
 - **No number is better than a wrong one.** The seconds appear once the target has lost a few percent; in a group or on a boss also after about 10 s, because the first seconds of a pull say too little. Meanwhile a **dim icon** shows that the addon is counting.
 - **Joined late?** A boss you take into your target at 50 %, the next mob of a pull: it gets its seconds too, a little later, once it has lost some more health.
 - **Follows enemies by their nameplates**, also while they are not your target: switch from an add to the boss and back, and the seconds are there at once. Needs the enemy nameplates switched on.
-- **Seconds on every enemy's nameplate**, also the target's and the focus's: see which mob of a pull goes down first. The same enemy shows the same number everywhere.
+- **Seconds on every enemy's nameplate**, also the target's and the focus's: see which mob of a pull goes down first. The same enemy shows the same number everywhere. Small and only for the last 30 s by default.
 - **Last seconds in red**: from 5 s up to a minute before the end (10 s by default), for the cooldowns, trinkets and potions you keep for the finish.
 - **Longer fights read easily:** "~2:30" above 90 s, "~12 min" above 10 minutes.
 
@@ -29,6 +29,7 @@ Three columns, target, focus and nameplates (the focus frame and the nameplates 
 - **Show from**: only once about 30 s, 1, 2, 5 or 10 minutes or less are left (5 minutes by default), or always.
 - **Last seconds in red**: off, 5, 10, 15, 20, 30, 45 or 60 s.
 - **Only elites and bosses**, **size**, **icon**.
+- Nameplates: count enemies that are not your target, seconds above every nameplate, the height above it.
 - **Language**: your game's language or any of the 9; the window opens where you left it.
 - Unlock the frames to drag them anywhere; a fight locks them again.
 

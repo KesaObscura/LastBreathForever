@@ -103,7 +103,9 @@ M.noCombatInfo = false -- the game does not say whether a unit is fighting
 function UnitAffectingCombat(u)
   local m = mob(u)
   if M.noCombatInfo then return M.secret(true) end
-  return m ~= nil and m.fighting == true
+  if m == nil or m.evaded then return false end
+  -- a mob that was hit fights while the player fights
+  return m.fighting == true or (m.wasHit == true and M.combat == true)
 end
 M.group = 0
 function GetNumGroupMembers() return M.group end
@@ -220,6 +222,7 @@ end
 -- a hit on a mob (the target when none is given): the game tells every unit name it has
 function M.hit(m)
   m = m or M.target
+  if m then m.wasHit = true end
   local units = { "target", "focus" }
   for i = 1, 4 do units[#units + 1] = "boss" .. i end
   for i = 1, 20 do units[#units + 1] = "nameplate" .. i end

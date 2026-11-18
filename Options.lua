@@ -388,18 +388,29 @@ Build = function()
   -- the focus's: the same enemy shows the same number everywhere), following enemies by them
   local h3 = Header(win, L.optPlatesHead, COL - 2 * PAD)
   h3:SetPoint("TOPLEFT", win, "TOPLEFT", PX, top)
-  local allPlates = Check(win, L.optAllPlates, L.tipAllPlates, function() return db.allPlates end,
-    function(v) db.allPlates = v; ns.Apply() end, function() return db.plates end)
-  allPlates:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY)
-  local plateSame = Check(win, L.optSame, L.tipSamePlates, function() return db.plateSame end,
-    function(v) db.plateSame = v; ns.Apply() end, function() return db.plates and db.allPlates end)
-  plateSame:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY - 26)
   local plates = Check(win, L.optPlates, L.tipPlates, function() return db.plates end,
     function(v) db.plates = v; ns.Apply() end)
-  plates:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY - 52)
-  control(allPlates, plateSame, plates)
-  local _, plateRows = Column(PX + IN, rowsY, function() return db.plateSame and db or db.p end,
+  plates:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY)
+  local allPlates = Check(win, L.optAllPlates, L.tipAllPlates, function() return db.allPlates end,
+    function(v) db.allPlates = v; ns.Apply() end, function() return db.plates end)
+  allPlates:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY - 26)
+  local plateSame = Check(win, L.optSame, L.tipSamePlates, function() return db.plateSame end,
+    function(v) db.plateSame = v; ns.Apply() end, function() return db.plates and db.allPlates end)
+  plateSame:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY - 52)
+  control(plates, allPlates, plateSame)
+  local py, plateRows = Column(PX + IN, rowsY, function() return db.plateSame and db or db.p end,
     function() return db.plates and db.allPlates and not db.plateSame end, ns.Apply)
+  -- a sixth row only here: how high above the nameplate
+  local plateY = Stepper(win, L.optPlateY, L.tipPlateY,
+    function() return db.plateY end,
+    function(v) db.plateY = v; ns.Apply() end,
+    { fmt = function(v) return string.format("%+d", v) end,
+      next = function(v, dir) return math.max(-20, math.min(60, v + dir * 2)) end },
+    function() return db.plates and db.allPlates end)
+  plateY.label:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, py)
+  py = py - ROW
+  control(plateY.minus, plateY.plus, plateY.tipArea)
+  y = math.min(y, py)
 
   -- what the seconds are, across both columns
   y = y - 4
@@ -457,7 +468,7 @@ Build = function()
   control(lang, langTip, lock, reset)
   win:SetHeight(-(y - 22 - 16))
   win.widgets = { show = show, sameAs = sameAs, lang = lang, lock = lock, reset = reset,
-    plates = plates, allPlates = allPlates, plateSame = plateSame, plateRows = plateRows,
+    plates = plates, allPlates = allPlates, plateSame = plateSame, plateRows = plateRows, plateY = plateY,
     leftRows = leftRows, rightRows = rightRows }
   ns.optionsWindow = win
 end
