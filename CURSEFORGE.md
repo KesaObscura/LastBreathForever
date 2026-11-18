@@ -1,6 +1,6 @@
-**Time to die for World of Warcraft: Forever (WoW Forever, Classic+): about how many seconds your target has left.**
+**Time to die (TTD) for World of Warcraft: Forever (WoW Forever, Classic+): about how many seconds your target has left, and every enemy on its nameplate.**
 
-A small frame next to your target shows **"~12 s"** (longer times as "~2:30" or "~12 min"), live in combat. Finish the long cast or switch targets, keep the potion, the trinket and the cooldown for the last seconds, and see when a boss is about to go down. Solo, in a group, in dungeons and on bosses. For every class: damage dealers, tanks and healers.
+A small frame next to your target shows **"~12 s"** (longer times as "~2:30" or "~12 min"), live in combat, and the same seconds stand **above every enemy's nameplate**. Finish the long cast or switch targets, see which mob of a pull dies first, keep the potion, the trinket and the cooldown for the last seconds, and see when a boss is about to go down. Solo, in a group, in dungeons and on bosses. For every class: damage dealers, tanks and healers.
 
 ![Time to die: about how many seconds your target has left, next to its frame](https://raw.githubusercontent.com/KesaObscura/LastBreathForever/main/docs/images/time-to-die-live-in-combat.png)
 
@@ -11,8 +11,8 @@ A small frame next to your target shows **"~12 s"** (longer times as "~2:30" or 
 - **About how many seconds your target has left**, worked out from how fast it has been losing health in this fight. Always "about", never exact: when the damage changes a lot (a burn phase, the group arriving late), the number follows with a delay. In the last part of a fight it is close.
 - **No number is better than a wrong one.** The seconds appear once the target has lost a few percent; in a group or on a boss also after about 10 s, because the first seconds of a pull say too little. Meanwhile a **dim icon** shows that the addon is counting.
 - **Joined late?** A boss you take into your target at 50 %, the next mob of a pull: it gets its seconds too, a little later, once it has lost some more health.
-- **Follows enemies by their nameplates**, also while they are not your target: switch from an add to the boss and back, and the seconds are there at once. Needs the enemy nameplates switched on.
-- **Seconds on every enemy's nameplate**, also the target's and the focus's: see which mob of a pull goes down first. The same enemy shows the same number everywhere. Small and only for the last 30 s by default.
+- **Time to die on nameplates:** small seconds above every enemy that is being hit, also above your target and your focus: see which mob of a pull goes down first and where to put the next cast. The same enemy shows the same number everywhere. Only for the last 30 s by default (up to 1:30), right above the enemy's name.
+- **Boss and adds at the same time:** every enemy with a nameplate is counted from its first hit, also while it is not your target. Switch from an add to the boss and back, and the seconds are there at once. Needs the enemy nameplates switched on.
 - **Last seconds in red**: from 5 s up to a minute before the end (10 s by default), for the cooldowns, trinkets and potions you keep for the finish.
 - **Longer fights read easily:** "~2:30" above 90 s, "~12 min" above 10 minutes.
 
@@ -29,11 +29,11 @@ Three columns, target, focus and nameplates (the focus frame and the nameplates 
 - **Show from**: only once about 30 s, 1, 2, 5 or 10 minutes or less are left (5 minutes by default), or always.
 - **Last seconds in red**: off, 5, 10, 15, 20, 30, 45 or 60 s.
 - **Only elites and bosses**, **size**, **icon**.
-- Nameplates: count enemies that are not your target, seconds above every nameplate, the height above it.
+- **Nameplates:** count enemies that are not your target, seconds above every nameplate, their own size and rules (from 30 s, 1 min or 1:30), the height above the nameplate.
 - **Language**: your game's language or any of the 9; the window opens where you left it.
 - Unlock the frames to drag them anywhere; a fight locks them again.
 
-![The settings window: target and focus in two columns](https://raw.githubusercontent.com/KesaObscura/LastBreathForever/main/docs/images/settings-target-focus.png)
+![The settings window: target, focus and nameplates in three columns](https://raw.githubusercontent.com/KesaObscura/LastBreathForever/main/docs/images/settings-target-focus.png)
 
 ## Commands
 
@@ -50,18 +50,21 @@ Three columns, target, focus and nameplates (the focus frame and the nameplates 
 - **Is it exact?** No addon can be exact here: the number is an estimate from the fight so far. It is close in the last part of a fight and can be off by a lot when the damage suddenly changes.
 - **Why is there no number at the start of a fight?** The first seconds of a pull say too little (the tank alone, then the group). A number that is three times too high would cost you a cooldown; the dim icon says the addon is counting.
 - **Does it work in WoW Classic Era, Hardcore or retail?** No. It is made for World of Warcraft: Forever (client 1.60.1) and its addon rules.
-- **I switched to an add and back to the boss in a dungeon, and the number took a moment.** Put the boss on your focus: the focus keeps its count all fight long.
+- **I switched to an add and back to the boss in a dungeon, and the number took a moment.** Keep the enemy nameplates switched on (the addon then counts every enemy all fight long), or put the boss on your focus.
+- **No seconds on the nameplates?** Switch on the enemy nameplates in the game. The seconds show only above enemies that are being hit, and only for the last seconds (30 s by default; up to 1:30 in the settings).
+- **The numbers of a big pull sit on top of each other.** So do the nameplates: let the game stack its nameplates instead of overlapping them (if its settings offer it), or make the seconds smaller in the nameplates column.
 - **Does it need other addons?** No libraries, nothing else.
 
 ## Tested so far
 
-- **In the live game**, priest level 24-30: solo in the open world, in a group of five in dungeons, on dungeon bosses, with the boss as target and as focus, in English and Russian.
+- **In the live game**, priest level 24-32: solo in the open world, in a group of five in dungeons, on dungeon bosses, with the boss as target and as focus, in English and Russian.
+- **Seconds on the nameplates:** a whole dungeon run in a group of five, six bosses and their adds and more than twenty trash pulls.
 - Accuracy checked against the real kill time on more than a dozen boss fights and many solo fights.
 - **Not confirmed in game yet:** raids. Playing one? Tell us in the comments.
 
 ## More Forever addons
 
-- [Full Mana Forever](https://github.com/KesaObscura/FullManaForever): the right mana potion at the right moment, the five-second rule and live mana regen.
+- [Full Mana Forever](https://www.curseforge.com/wow/addons/full-mana-forever): never waste a mana potion in WoW Forever: the right potion, rune, mana gem or mana spell lights up when it fits your missing mana.
 
 ## Bug reports
 
