@@ -30,14 +30,15 @@ of the Forever series with [Full Mana Forever](https://github.com/KesaObscura/Fu
   has lost some more health.
 - **Follows enemies by their nameplates**, also while they are not your target: take one into
   your target and its seconds are there at once. Bosses and adds alike, also in dungeons.
-- **Above the target's nameplate** (optional), or anywhere you place the frame.
+- **Seconds on every enemy's nameplate**, also the target's and the focus's: see which mob of a
+  pull goes down first. The same enemy shows the same number everywhere.
 - **Last seconds in red**: from 5 s up to a minute before the end (10 s by default), for the
   cooldowns, trinkets and potions you keep for the finish.
 - **Focus frame** (optional): a second frame with the seconds of your focus, with the target
   frame's settings or its own. **Healers**: put the boss in your focus, and its seconds stay on
   screen while an ally is your target.
 - **Show from**: only once about 30 s, 1, 2, 5 or 10 minutes or less are left, or always.
-- **Only elites and bosses**, size, icon, position: settings in two columns, target and focus.
+- **Only elites and bosses**, size, icon, position: settings in three columns, target, focus and nameplates.
 - **9 languages**: English, Deutsch, Español (EU and AL), Français, Русский, 한국어, Português,
   简体中文, 繁體中文. The addon follows your game language, or choose one in the settings.
 

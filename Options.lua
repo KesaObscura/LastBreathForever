@@ -5,8 +5,8 @@ local L = ns.L
 local Skin = ns.Skin
 local GOLD, GREY = Skin.GOLD, Skin.GREY
 
-local COL, PAD, ROW = 370, 18, 30   -- two columns: target | focus
-local W = 2 * COL
+local COL, PAD, ROW = 370, 18, 30   -- three columns: target | focus | nameplates
+local W = 3 * COL
 local VALUE_X = 214 -- where the values of the steppers start, from the label's left edge
 local win
 local registry = {} -- everything with a Refresh (made anew with the window)
@@ -358,21 +358,16 @@ Build = function()
     return y, list
   end
 
-  local LX, RX = PAD, COL + PAD
+  local LX, RX, PX = PAD, COL + PAD, 2 * COL + PAD
   local introY = top - 30
-  local rowsY = introY - 58
+  local rowsY = introY - 84
 
   -- left: the target
   local h1 = Header(win, L.optTarget, COL - 2 * PAD)
   h1:SetPoint("TOPLEFT", win, "TOPLEFT", LX, top)
-  -- two switches, at the heights of the focus column's two
-  local onPlate = Check(win, L.optOnPlate, L.tipOnPlate, function() return db.onPlate end,
-    function(v) db.onPlate = v; ns.Apply() end)
-  onPlate:SetPoint("TOPLEFT", win, "TOPLEFT", LX + IN, introY)
-  local plates = Check(win, L.optPlates, L.tipPlates, function() return db.plates end,
-    function(v) db.plates = v; ns.Apply() end)
-  plates:SetPoint("TOPLEFT", win, "TOPLEFT", LX + IN, introY - 26)
-  control(onPlate, plates)
+  local intro = Label(win, L.noteTarget, "GameFontHighlightSmall")
+  intro:SetPoint("TOPLEFT", win, "TOPLEFT", LX + IN, introY - 6)
+  intro:SetWidth(COL - 2 * PAD - IN)
   local y, leftRows = Column(LX + IN, rowsY, function() return db end, nil, ns.Apply)
 
   -- right: the focus. Two switches, then the same rows: the target's values greyed out while
@@ -388,6 +383,23 @@ Build = function()
   control(show, sameAs)
   local _, rightRows = Column(RX + IN, rowsY, function() return db.focusSame and db or db.f end,
     function() return db.focus and not db.focusSame end, ns.Apply)
+
+  -- third column: the nameplates. Seconds above every enemy's nameplate (also the target's and
+  -- the focus's: the same enemy shows the same number everywhere), following enemies by them
+  local h3 = Header(win, L.optPlatesHead, COL - 2 * PAD)
+  h3:SetPoint("TOPLEFT", win, "TOPLEFT", PX, top)
+  local allPlates = Check(win, L.optAllPlates, L.tipAllPlates, function() return db.allPlates end,
+    function(v) db.allPlates = v; ns.Apply() end, function() return db.plates end)
+  allPlates:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY)
+  local plateSame = Check(win, L.optSame, L.tipSamePlates, function() return db.plateSame end,
+    function(v) db.plateSame = v; ns.Apply() end, function() return db.plates and db.allPlates end)
+  plateSame:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY - 26)
+  local plates = Check(win, L.optPlates, L.tipPlates, function() return db.plates end,
+    function(v) db.plates = v; ns.Apply() end)
+  plates:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY - 52)
+  control(allPlates, plateSame, plates)
+  local _, plateRows = Column(PX + IN, rowsY, function() return db.plateSame and db or db.p end,
+    function() return db.plates and db.allPlates and not db.plateSame end, ns.Apply)
 
   -- what the seconds are, across both columns
   y = y - 4
@@ -405,6 +417,11 @@ Build = function()
   sep:SetWidth(1)
   sep:SetPoint("TOP", win, "TOPLEFT", COL, top - 22)
   sep:SetPoint("BOTTOM", win, "TOPLEFT", COL, y + noteH + 16)
+  local sep2 = win:CreateTexture(nil, "ARTWORK")
+  sep2:SetColorTexture(Skin.EDGE[1], Skin.EDGE[2], Skin.EDGE[3], 0.6)
+  sep2:SetWidth(1)
+  sep2:SetPoint("TOP", win, "TOPLEFT", 2 * COL, top - 22)
+  sep2:SetPoint("BOTTOM", win, "TOPLEFT", 2 * COL, y + noteH + 16)
 
   -- footer across both columns: the language (left), placing the frames (right)
   local fline = win:CreateTexture(nil, "ARTWORK")
@@ -440,7 +457,7 @@ Build = function()
   control(lang, langTip, lock, reset)
   win:SetHeight(-(y - 22 - 16))
   win.widgets = { show = show, sameAs = sameAs, lang = lang, lock = lock, reset = reset,
-    onPlate = onPlate, plates = plates,
+    plates = plates, allPlates = allPlates, plateSame = plateSame, plateRows = plateRows,
     leftRows = leftRows, rightRows = rightRows }
   ns.optionsWindow = win
 end

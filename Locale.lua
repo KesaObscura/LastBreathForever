@@ -58,10 +58,13 @@ T.enUS = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d min",
   bugReport = "Bug reports and ideas: %s",
-  optOnPlate = "Above the target's nameplate",
-  tipOnPlate = "The target frame stands right above the target's nameplate. Without a nameplate (switched off, out of sight) it stays where you placed it.",
   optPlates = "Follow enemies by their nameplates",
   tipPlates = "Counts every enemy with a visible nameplate, also while it is not your target: take it into your target, and its seconds are there at once. Bosses and adds alike. Needs the enemy nameplates switched on.",
+  optAllPlates = "Show the seconds on the nameplates",
+  tipAllPlates = "The seconds above every enemy's nameplate, also the target's and the focus's: the same enemy shows the same number everywhere. See which mob of a pull goes down first. Needs the enemy nameplates switched on.",
+  optPlatesHead = "Nameplates",
+  noteTarget = "The seconds of your current target.",
+  tipSamePlates = "The nameplates look and behave like the target frame. Untick to give them their own size and rules.",
 }
 
 T.deDE = {
@@ -116,10 +119,13 @@ T.deDE = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d Min.",
   bugReport = "Fehlerberichte und Ideen: %s",
-  optOnPlate = "Über der Namensplakette des Ziels",
-  tipOnPlate = "Der Zielrahmen steht direkt über der Namensplakette des Ziels. Ohne Plakette (ausgeschaltet, nicht in Sicht) bleibt er, wo du ihn hingestellt hast.",
   optPlates = "Gegnern über ihre Namensplaketten folgen",
   tipPlates = "Zählt jeden Gegner mit sichtbarer Namensplakette, auch wenn er nicht dein Ziel ist: Nimmst du ihn ins Ziel, sind seine Sekunden sofort da. Bosse und Adds gleichermaßen. Die gegnerischen Namensplaketten müssen eingeschaltet sein.",
+  optAllPlates = "Sekunden auf den Namensplaketten",
+  tipAllPlates = "Die Sekunden über der Namensplakette jedes Gegners, auch über Ziel und Fokus: Derselbe Gegner zeigt überall dieselbe Zahl. Du siehst, welcher Gegner eines Pulls zuerst fällt. Die gegnerischen Namensplaketten müssen eingeschaltet sein.",
+  optPlatesHead = "Namensplaketten",
+  noteTarget = "Die Sekunden deines aktuellen Ziels.",
+  tipSamePlates = "Die Namensplaketten sehen aus und verhalten sich wie der Zielrahmen. Entferne den Haken für eigene Größe und Regeln.",
 }
 
 T.ruRU = {
@@ -174,10 +180,13 @@ T.ruRU = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d мин",
   bugReport = "Баги и идеи: %s",
-  optOnPlate = "Над табличкой цели",
-  tipOnPlate = "Рамка цели стоит прямо над табличкой цели. Без таблички (выключены, моб не виден) она остаётся там, где ты её поставил.",
   optPlates = "Следить за врагами по табличкам",
   tipPlates = "Считает каждого врага с видимой табличкой, даже если он не в цели: берёшь его в цель — и его секунды сразу на месте. И боссы, и адды. Нужны включённые таблички врагов.",
+  optAllPlates = "Показывать секунды на табличках",
+  tipAllPlates = "Секунды над табличкой каждого врага, в том числе цели и фокуса: у одного и того же врага везде одно и то же число. Видно, какой моб из пака умрёт первым. Нужны включённые таблички врагов.",
+  optPlatesHead = "Таблички",
+  noteTarget = "Секунды твоей текущей цели.",
+  tipSamePlates = "Таблички выглядят и ведут себя как рамка цели. Сними галочку, чтобы задать им свой размер и правила.",
 }
 
 T.esES = {
@@ -232,10 +241,13 @@ T.esES = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d min",
   bugReport = "Errores e ideas: %s",
-  optOnPlate = "Sobre la placa de nombre del objetivo",
-  tipOnPlate = "El marco del objetivo se coloca justo encima de su placa de nombre. Sin placa (desactivada, fuera de vista) se queda donde lo pusiste.",
   optPlates = "Seguir a los enemigos por sus placas de nombre",
   tipPlates = "Cuenta cada enemigo con una placa de nombre visible, aunque no sea tu objetivo: cuando lo seleccionas, sus segundos aparecen al momento. Jefes y adds por igual. Las placas de nombre enemigas deben estar activadas.",
+  optAllPlates = "Mostrar los segundos en las placas de nombre",
+  tipAllPlates = "Los segundos sobre la placa de nombre de cada enemigo, también la del objetivo y la del foco: el mismo enemigo muestra el mismo número en todas partes. Verás qué enemigo del grupo cae primero. Las placas de nombre enemigas deben estar activadas.",
+  optPlatesHead = "Placas de nombre",
+  noteTarget = "Los segundos de tu objetivo actual.",
+  tipSamePlates = "Las placas de nombre se ven y se comportan como el marco del objetivo. Desmárcalo para darles su propio tamaño y sus reglas.",
 }
 
 T.frFR = {
@@ -290,10 +302,13 @@ T.frFR = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d min",
   bugReport = "Bugs et idées : %s",
-  optOnPlate = "Au-dessus de la barre de nom de la cible",
-  tipOnPlate = "Le cadre de la cible se place juste au-dessus de sa barre de nom. Sans barre (désactivée, hors de vue), il reste là où tu l'as mis.",
   optPlates = "Suivre les ennemis par leurs barres de nom",
   tipPlates = "Compte chaque ennemi dont la barre de nom est visible, même s'il n'est pas ta cible : quand tu le cibles, ses secondes sont là tout de suite. Boss et adds de la même façon. Les barres de nom ennemies doivent être activées.",
+  optAllPlates = "Afficher les secondes sur les barres de nom",
+  tipAllPlates = "Les secondes au-dessus de la barre de nom de chaque ennemi, aussi la cible et la focalisation : le même ennemi affiche le même nombre partout. Tu vois quel monstre du pull tombe en premier. Les barres de nom ennemies doivent être activées.",
+  optPlatesHead = "Barres de nom",
+  noteTarget = "Les secondes de ta cible actuelle.",
+  tipSamePlates = "Les barres de nom ressemblent au cadre de la cible et se comportent de même. Décoche pour leur donner leur propre taille et leurs règles.",
 }
 
 T.ptBR = {
@@ -348,10 +363,13 @@ T.ptBR = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d min",
   bugReport = "Bugs e ideias: %s",
-  optOnPlate = "Acima da placa de nome do alvo",
-  tipOnPlate = "O quadro do alvo fica logo acima da placa de nome do alvo. Sem placa (desligada, fora de vista), ele fica onde você o colocou.",
   optPlates = "Seguir inimigos pelas placas de nome",
   tipPlates = "Conta cada inimigo com placa de nome visível, mesmo quando não é o seu alvo: ao selecioná-lo, os segundos dele aparecem na hora. Chefes e adds igualmente. As placas de nome dos inimigos precisam estar ligadas.",
+  optAllPlates = "Mostrar os segundos nas placas de nome",
+  tipAllPlates = "Os segundos acima da placa de nome de cada inimigo, também do alvo e do foco: o mesmo inimigo mostra o mesmo número em todo lugar. Veja qual inimigo do pull cai primeiro. As placas de nome dos inimigos precisam estar ligadas.",
+  optPlatesHead = "Placas de nome",
+  noteTarget = "Os segundos do seu alvo atual.",
+  tipSamePlates = "As placas de nome têm a aparência e o comportamento do quadro do alvo. Desmarque para dar a elas tamanho e regras próprios.",
 }
 
 T.koKR = {
@@ -406,10 +424,13 @@ T.koKR = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d분",
   bugReport = "버그 신고와 아이디어: %s",
-  optOnPlate = "대상 이름표 위에 표시",
-  tipOnPlate = "대상 창이 대상의 이름표 바로 위에 붙습니다. 이름표가 없으면(꺼짐, 시야 밖) 직접 놓은 자리에 그대로 있습니다.",
   optPlates = "이름표로 적 추적",
   tipPlates = "이름표가 보이는 모든 적을 대상이 아니어도 계속 셉니다. 대상으로 잡으면 초가 바로 나타납니다. 우두머리와 추가 몹 모두. 적 이름표가 켜져 있어야 합니다.",
+  optAllPlates = "이름표에 초 표시",
+  tipAllPlates = "대상과 주시 대상을 포함해 모든 적의 이름표 위에 초를 표시합니다. 같은 적은 어디서나 같은 숫자입니다. 몹 무리 중 누가 먼저 쓰러지는지 보입니다. 적 이름표가 켜져 있어야 합니다.",
+  optPlatesHead = "이름표",
+  noteTarget = "현재 대상의 초입니다.",
+  tipSamePlates = "이름표가 대상 창과 같은 모양과 방식으로 동작합니다. 체크를 풀면 크기와 규칙을 따로 정할 수 있습니다.",
 }
 
 T.zhCN = {
@@ -464,10 +485,13 @@ T.zhCN = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d 分钟",
   bugReport = "错误报告与建议：%s",
-  optOnPlate = "显示在目标姓名板上方",
-  tipOnPlate = "目标框紧贴在目标姓名板的上方。没有姓名板时（已关闭、不在视野内），它留在你放置的位置。",
   optPlates = "通过姓名板追踪敌人",
   tipPlates = "统计每个姓名板可见的敌人，即使它不是你的目标：选中它时，它的秒数立刻出现。首领和小怪都一样。需要开启敌方姓名板。",
+  optAllPlates = "在姓名板上显示秒数",
+  tipAllPlates = "在每个敌人的姓名板上方显示秒数，包括目标和焦点：同一个敌人在所有地方显示相同的数字。一眼看出一波怪里谁先倒。需要开启敌方姓名板。",
+  optPlatesHead = "姓名板",
+  noteTarget = "你当前目标的秒数。",
+  tipSamePlates = "姓名板的外观和行为与目标框相同。取消勾选可为它们单独设置大小和规则。",
 }
 
 T.zhTW = {
@@ -522,10 +546,13 @@ T.zhTW = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d 分鐘",
   bugReport = "錯誤回報與建議：%s",
-  optOnPlate = "顯示在目標名條上方",
-  tipOnPlate = "目標框緊貼在目標名條的上方。沒有名條時（已關閉、不在視野內），它留在你放置的位置。",
   optPlates = "透過名條追蹤敵人",
   tipPlates = "統計每個名條可見的敵人，即使它不是你的目標：選中它時，它的秒數立刻出現。首領和小怪都一樣。需要開啟敵方名條。",
+  optAllPlates = "在名條上顯示秒數",
+  tipAllPlates = "在每個敵人的名條上方顯示秒數，包括目標和專注目標：同一個敵人在所有地方顯示相同的數字。一眼看出一波怪裡誰先倒。需要開啟敵方名條。",
+  optPlatesHead = "名條",
+  noteTarget = "你當前目標的秒數。",
+  tipSamePlates = "名條的外觀和行為與目標框相同。取消勾選可為它們單獨設定大小和規則。",
 }
 
 T.esMX = T.esES

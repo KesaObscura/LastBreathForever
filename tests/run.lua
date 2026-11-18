@@ -303,7 +303,7 @@ test("settings: every control has a tooltip, also the greyed-out ones", function
   ns.ToggleOptions()
   local win = ns.optionsWindow
   assert(win and win:IsShown())
-  assert(#win.controls == 31, "controls: " .. #win.controls)
+  assert(#win.controls == 43, "controls: " .. #win.controls)
   for i, c in ipairs(win.controls) do
     assert(c.scripts.OnEnter and c.tipTitle and c.tipText and c.tipText ~= "", "control " .. i .. " has no tooltip")
     c.scripts.OnEnter(c)
@@ -703,7 +703,7 @@ test("nameplates: the boss is counted while an add is the target; its seconds at
 end)
 
 test("target, focus and nameplate are one mob: one count, the same seconds in both frames", function()
-  local ns = fresh({ db = { limit = 0, focus = true }, setup = function(m) m.secretGuid = true end })
+  local ns = fresh({ db = { limit = 0, focus = true, onPlate = false }, setup = function(m) m.secretGuid = true end })
   local b = mob("boss")
   M.showPlate(1, b)
   M.combat = true M.fire("PLAYER_REGEN_DISABLED")
@@ -750,23 +750,6 @@ test("a nameplate that goes away forgets its count; a fight's end forgets them a
   assert(ns.plateTracks.nameplate1.hits == 0)
 end)
 
-test("above the target's nameplate: there while locked and the plate is seen, else its own place", function()
-  local ns = fresh({ db = { onPlate = true } })
-  local v = ns.views[1]
-  local b = mob("x")
-  M.target, M.hp = b, 1 M.fire("PLAYER_TARGET_CHANGED")
-  assert(v.hud.point[1] == "CENTER", "no nameplate: its own place")
-  M.showPlate(3, b)
-  M.tick(0.2, 0)
-  assert(v.hud.point[1] == "BOTTOM" and v.hud.point[2] == M.plateFrames[3], "above the nameplate")
-  SlashCmdList.LASTBREATHFOREVER("unlock")
-  assert(v.hud.point[1] == "CENTER", "unlocked: its own place, to be dragged")
-  SlashCmdList.LASTBREATHFOREVER("lock")
-  assert(v.hud.point[2] == M.plateFrames[3])
-  M.hidePlate(3) M.tick(0.2, 0)
-  assert(v.hud.point[1] == "CENTER", "plate gone: back to its own place")
-end)
-
 test("/lbf check counts the nameplates", function()
   local ns = fresh()
   local b = mob("x") M.showPlate(1, b)
@@ -789,6 +772,90 @@ test("a nameplate seen later than the target's own count does not replace it", f
   M.tick(0.2, 0)
   assert(shown(ns), "the longer count stays")
   near(seconds(ns), 11, 2, "from the target's own count")
+end)
+
+local function plateText(ns, token)
+  local v = ns.plateViews[token]
+  if not v then return nil end
+  for _, c in ipairs(v.cells) do
+    local fs = anyText(c)
+    if fs then return M.reveal(fs:GetText()) end
+  end
+end
+
+test("target, focus and nameplates all on: seconds everywhere, the same mob shows the same number", function()
+  local ns = fresh({ db = { limit = 0, focus = true }, setup = function(m) m.secretGuid = true m.group = 5 end })
+  local b, a1, a2 = mob("boss"), mob("add1"), mob("add2")
+  M.showPlate(1, b) M.showPlate(2, a1) M.showPlate(3, a2)
+  M.target, M.hp = a1, 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.focus = b M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 12 do
+    b.hp = b.hp - 0.02 M.hit(b)
+    a1.hp = a1.hp - 0.04 M.hp = a1.hp M.hit(a1)
+    a2.hp = a2.hp - 0.05 M.hit(a2)
+    M.tick(1, 0)
+  end
+  M.tick(0.4, 0)
+  local function num(t) return t and tonumber(t:match("%d+")) end
+  local tgt, foc = seconds(ns), focusSeconds(ns)
+  local p1, p2, p3 = num(plateText(ns, "nameplate1")), num(plateText(ns, "nameplate2")), num(plateText(ns, "nameplate3"))
+  assert(tgt and foc and p1 and p2 and p3, "all five numbers on screen")
+  assert(p2 == tgt, "the target's nameplate shows the target's number: " .. p2 .. " / " .. tgt)
+  assert(p1 == foc, "the focus's nameplate shows the focus's number: " .. p1 .. " / " .. foc)
+  assert(ns.plateViews.nameplate2.track == ns.views[1].track, "one count for the target")
+  assert(ns.plateViews.nameplate1.track == ns.views[2].track, "one count for the focus")
+  -- the focus becomes the target too: three places, one number
+  M.target, M.hp = b, b.hp M.fire("PLAYER_TARGET_CHANGED")
+  M.tick(0.4, 0)
+  assert(seconds(ns) == focusSeconds(ns) and seconds(ns) == num(plateText(ns, "nameplate1")))
+  assert(ns.views[1].track == ns.views[2].track and ns.views[2].track == ns.plateViews.nameplate1.track)
+  -- switched off
+  ns.db.allPlates = false ns.Apply() M.tick(0.4, 0)
+  assert(not plateText(ns, "nameplate2") and not plateText(ns, "nameplate3"))
+end)
+
+test("a hit seen at the same moment by target, focus and nameplate: every frame picks the same count", function()
+  local ns = fresh({ db = { limit = 0, focus = true }, setup = function(m) m.secretGuid = true end })
+  local b = mob("boss")
+  M.showPlate(1, b)
+  M.target, M.hp = b, 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.focus = b M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 8 do b.hp = b.hp - 0.05 M.hp = b.hp M.hit(b) M.tick(1, 0) end
+  M.tick(0.4, 0)
+  local t1, t2, t3 = ns.views[1].track, ns.views[2].track, ns.plateViews.nameplate1.track
+  assert(t1 == t2 and t2 == t3, "one track")
+end)
+
+test("nameplates with their own settings", function()
+  local ns = fresh({ db = { limit = 0 } })
+  assert(ns.db.plateSame == true and ns.db.p.scale == 0.7, "same as the target by default; own size 70 %")
+  local b = mob("x") M.showPlate(1, b)
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 5 do b.hp = b.hp - 0.012 M.hit(b) M.tick(1, 0) end
+  M.tick(0.4, 0)
+  assert(plateText(ns, "nameplate1"), "always: shown")
+  ns.db.plateSame = false ns.db.p.limit = 30 ns.Apply()
+  M.tick(0.4, 0)
+  assert(not plateText(ns, "nameplate1"), "own rule 30 s: hidden at about 80 s")
+  assert(ns.plateViews.nameplate1.cells[1].frame:GetScale() == 0.7)
+end)
+
+test("settings: the nameplates column greys out while it follows the target or is off", function()
+  local ns = fresh()
+  ns.ToggleOptions()
+  local w = ns.optionsWindow.widgets
+  local function anyEnabled()
+    for _, x in ipairs(w.plateRows) do
+      if (x.kind == "Button" or x.kind == "CheckButton") and x:IsEnabled() then return true end
+    end
+  end
+  assert(w.allPlates:IsEnabled() and not anyEnabled(), "same as the target: rows greyed")
+  w.plateSame.checked = false w.plateSame.scripts.OnClick(w.plateSame)
+  assert(anyEnabled(), "own settings: rows usable")
+  w.plates.checked = false w.plates.scripts.OnClick(w.plates)
+  assert(not w.allPlates:IsEnabled() and not w.plateSame:IsEnabled() and not anyEnabled(), "not following: all greyed")
 end)
 
 for _, t in ipairs(tests) do

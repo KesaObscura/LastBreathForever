@@ -38,7 +38,8 @@ local DEFAULTS = {
   focus = false,   -- a second frame for the focus
   focusSame = true, -- the focus frame uses the target frame's settings
   plates = true,   -- follow enemies by their nameplates, also while they are not the target
-  onPlate = false, -- the target frame above the target's nameplate
+  allPlates = true, -- seconds above every enemy's nameplate
+  plateSame = true, -- the nameplates use the target frame's settings
   language = "auto", -- "auto" = the game's language, else one of ns.LANGUAGES
 }
 ns.DEFAULTS = DEFAULTS
@@ -116,6 +117,13 @@ local function InitDB()
     for _, k in ipairs(ns.LOOK) do db.f[k] = db[k] end
   end
   look(db.f)
+  if type(db.p) ~= "table" then
+    db.p = {}
+    for _, k in ipairs(ns.LOOK) do db.p[k] = db[k] end
+    db.p.scale = 0.7 -- nameplates are small
+  end
+  look(db.p)
+  db.onPlate = nil -- an option of a test build
   local known = db.language == "auto"
   for _, l in ipairs(ns.LANGUAGES) do if l.code == db.language then known = true end end
   if not known then db.language = "auto" end
@@ -234,8 +242,10 @@ local plateStat = { seen = 0, hits = 0, yes = 0, no = 0, unknown = 0 } -- for /l
 local inCombat = false
 local encounter       -- the id of the running boss encounter, or nil
 
+local trackIds = 0
 local function NewTrack(unit)
-  local t = { unit = unit, gates = {}, hits = 0, used = 0, maxHits = 0, asked = 0, failed = 0, bands = FIGHTING }
+  trackIds = trackIds + 1
+  local t = { id = trackIds, unit = unit, gates = {}, hits = 0, used = 0, maxHits = 0, asked = 0, failed = 0, bands = FIGHTING }
   for k = 1, #BANDS do
     local g = CreateFrame("Frame", nil, root)
     g:SetAlpha(0)
@@ -366,6 +376,7 @@ local function PlateAdded(token)
   Clear(t)
   plateTracks[token] = t
   plateStat.seen = plateStat.seen + 1
+  if ns.PlateView then ns.PlateView(token) end
 end
 
 local function PlateRemoved(token)
@@ -373,6 +384,7 @@ local function PlateRemoved(token)
   if not t then return end
   plateTracks[token] = nil
   Clear(t)
+  if ns.PlateGone then ns.PlateGone(token) end
   platePool[#platePool + 1] = t
   for unit, x in pairs(platesOf) do if x == t then platesOf[unit] = nil end end
 end
@@ -404,20 +416,29 @@ end
 
 -- the track a frame shows. Target, focus and a nameplate can all be the same enemy: then the
 -- count that began first (the longest) is used, in both frames alike, never two counts mixed
+-- which of two counts is used: the one that began first; on a tie (one hit seen by target,
+-- focus and nameplate at the same moment) always the same one, so every frame agrees
+local function Earlier(a, b)
+  if not (a and a.hit) then return b end
+  if not (b and b.hit) then return a end
+  if a.hit ~= b.hit then return a.hit < b.hit and a or b end
+  return a.id < b.id and a or b
+end
+
 local function TrackFor(unit)
-  local best = unit == "focus" and focusTrack or cur
-  local function take(t)
-    if t and t.hit and not (best and best.hit and best.hit <= t.hit) then best = t end
+  local plate = type(unit) == "string" and unit:find("^nameplate") and plateTracks[unit] or nil
+  local isT, isF
+  if plate then
+    isT, isF = platesOf.target == plate, platesOf.focus == plate
+  else
+    isT, isF = unit == "target", unit == "focus"
   end
-  take(platesOf[unit])
-  if unit == "target" and db.focus and focusTrack.hit and Same("target", "focus") == true then
-    take(focusTrack)
-    take(platesOf.focus)
-  elseif unit == "focus" and cur and cur.hit and Same("focus", "target") == true then
-    take(cur)
-    take(platesOf.target)
-  end
-  return best
+  local same = (isT or isF) and Same("target", "focus") == true
+  local best = plate
+  if isT or same then best = Earlier(best, cur) best = Earlier(best, platesOf.target) end
+  if isF or same then best = Earlier(best, focusTrack) best = Earlier(best, platesOf.focus) end
+  -- nothing counted yet: the frame's own track, so it shows the "counting" sign
+  return best or (isF and focusTrack) or (isT and cur) or plate
 end
 
 ------------------------------------------------------------------------
@@ -436,19 +457,21 @@ end
 
 -- the settings a frame goes by: the focus frame has its own or follows the target's
 local function Cfg(v)
+  if v.plateView then return db.plateSame and db or db.p end
   if v.unit == "focus" and not db.focusSame then return db.f end
   return db
 end
 ns.Cfg = Cfg
 
--- the target's nameplate frame, when the game shows one
-local function TargetPlateFrame()
+-- a unit's nameplate frame, when the game shows one
+local function PlateFrame(unit)
   local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
   if type(get) ~= "function" then return nil end
-  local ok, f = pcall(get, "target")
+  local ok, f = pcall(get, unit)
   if not ok or IsSecret(f) or type(f) ~= "table" then return nil end
   return f
 end
+local function TargetPlateFrame() return PlateFrame("target") end
 
 local function Place(v)
   local hud = v.hud
@@ -456,14 +479,16 @@ local function Place(v)
   hud:SetScale(scale)
   hud:ClearAllPoints()
   local p = db[v.pointKey]
-  -- above the target's nameplate while locked; its own place while unlocked or without one
-  local plate = v.unit == "target" and db.onPlate and db.locked and TargetPlateFrame()
-  v.onPlate = plate and true or false
+  -- above its unit's nameplate while locked (the seconds over other enemies' nameplates are
+  -- always there); its own place while unlocked or without one
+  local plate = v.plateView and PlateFrame(v.unit) or nil
+  v.anchor = plate
   if plate and pcall(hud.SetPoint, hud, "BOTTOM", plate, "TOP", 0, 2) then
     return
   end
-  v.onPlate = false
+  v.anchor = nil
   hud:ClearAllPoints()
+  if v.plateView then return end
   if p then
     -- the point is kept in screen units, so a new size leaves the frame where it is
     hud:SetPoint("CENTER", UIParent, "BOTTOMLEFT", p[1] / scale, p[2] / scale)
@@ -516,7 +541,7 @@ local function Attach(v, track)
   HideCells(v)
 end
 
-local function BuildView(unit, pointKey, defaultY, label)
+local function BuildView(unit, pointKey, defaultY, label, plateView)
   local v = { unit = unit, pointKey = pointKey, defaultY = defaultY, cells = {} }
   local hud = CreateFrame("Frame", nil, UIParent)
   v.hud = hud
@@ -605,7 +630,7 @@ local function BuildView(unit, pointKey, defaultY, label)
     BigFont(c.textU)
     c.textU:SetTextColor(1, 0.25, 0.30)
     c.textU:SetAlpha(0)
-    if unit ~= "target" then
+    if unit == "focus" then
       -- a small word over the seconds tells the second frame from the first
       c.tag = c.num:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
       c.tag:SetPoint("BOTTOM", hud, "TOP", 0, 1)
@@ -614,24 +639,31 @@ local function BuildView(unit, pointKey, defaultY, label)
     c.frame:Hide()
     v.cells[k] = c
   end
-  views[#views + 1] = v
+  v.plateView = plateView
+  if not plateView then views[#views + 1] = v end
   return v
 end
 
-local function Enabled(v) return v.unit == "target" or db.focus end
+-- the seconds above other enemies' nameplates: one small frame per nameplate, made when needed
+local plateViews = {} -- [nameplate token] = view
+
+local function Enabled(v)
+  if v.plateView then return db.plates and db.allPlates end
+  return v.unit == "target" or db.focus
+end
 
 function ns.Apply()
   if not db.plates then
     for token in pairs(plateTracks) do PlateRemoved(token) end
   end
   local unlocked = not db.locked
-  for _, v in ipairs(views) do
+  local function ApplyView(v)
     local cfg = Cfg(v)
     local point, x = "CENTER", 0
     if cfg.icon then point, x = "LEFT", 34 end -- with the icon the seconds stand right of it
     Place(v)
     local on = Enabled(v)
-    v.hud:SetShown(on)
+    v.hud:SetShown(on and not (v.plateView and unlocked))
     v.hud:EnableMouse(unlocked and on)
     v.plate:SetShown(unlocked and on)
     v.chrome:SetShown(unlocked and on)
@@ -660,6 +692,13 @@ function ns.Apply()
       end
     end
     if not on or unlocked then HideCells(v) end
+  end
+  for _, v in ipairs(views) do ApplyView(v) end
+  for _, v in pairs(plateViews) do
+    ApplyView(v)
+    v.plate:Hide()
+    v.chrome:Hide()
+    v.hud:EnableMouse(false)
   end
   lockBtn:SetShown(unlocked)
   setBtn:SetShown(unlocked)
@@ -692,6 +731,17 @@ function ns.OnLanguageChanged()
   ns.Apply()
 end
 
+function ns.PlateView(token)
+  if plateViews[token] then return end
+  local v = BuildView(token, nil, 0, nil, true)
+  plateViews[token] = v
+  ns.Apply()
+end
+function ns.PlateGone(token)
+  local v = plateViews[token]
+  if v then Attach(v, nil) v.anchor = nil end
+end
+
 local function BuildAll()
   root = CreateFrame("Frame", nil, UIParent)
   root:SetSize(1, 1)
@@ -707,7 +757,7 @@ local function BuildAll()
   setBtn:SetPoint("TOPLEFT", main.hud, "BOTTOM", 2, -5)
   setBtn:SetScript("OnClick", function() if ns.ToggleOptions then ns.ToggleOptions(true) end end)
   ns.views, ns.hud, ns.cells = views, main.hud, main.cells
-  ns.targetSlots, ns.focusTrack, ns.plateTracks = targetSlots, focusTrack, plateTracks
+  ns.targetSlots, ns.focusTrack, ns.plateTracks, ns.plateViews = targetSlots, focusTrack, plateTracks, plateViews
 end
 
 ------------------------------------------------------------------------
@@ -827,32 +877,67 @@ local function ShowView(v, t, cfg)
   return true
 end
 
-local function Update()
-  -- the target frame follows the target's nameplate as it comes and goes
-  if db.onPlate and db.locked and views[1] then
-    local want = TargetPlateFrame() and true or false
-    if want ~= views[1].onPlate then Place(views[1]) end
+-- the seconds of one view from one track (or nothing)
+local function ShowFrom(v, t)
+  Attach(v, t)
+  local cfg = Cfg(v)
+  if Counting(t, cfg) then
+    if Ready(t) then
+      if not ShowView(v, t, cfg) then
+        HideCells(v)
+        Broken()
+        return
+      end
+    else
+      -- a few hits or seconds still missing: only the "counting" sign
+      for _, c in ipairs(v.cells) do c.num:SetAlpha(0) c.wait:SetAlpha(1) end
+    end
+    for _, c in ipairs(v.cells) do c.frame:Show() end
+  else
+    HideCells(v)
   end
+end
+
+local tickN = 0
+local plateTurn = 0
+local PLATES_PER_TICK = 2
+local function Update()
+  tickN = tickN + 1
+  -- target and focus: each in its own frame. The same enemy gets the same count everywhere
   for _, v in ipairs(views) do
     local t = nil
     if db.locked and Enabled(v) and Hostile(v.unit) then t = TrackFor(v.unit) end
-    Attach(v, t)
-    local cfg = Cfg(v)
-    if Counting(t, cfg) then
-      if Ready(t) then
-        if not ShowView(v, t, cfg) then
-          HideCells(v)
-          Broken()
-          t = nil
-        end
-      else
-        -- a few hits or seconds still missing: only the "counting" sign
-        for _, c in ipairs(v.cells) do c.num:SetAlpha(0) c.wait:SetAlpha(1) end
-      end
-      if t then for _, c in ipairs(v.cells) do c.frame:Show() end end
+    ShowFrom(v, t)
+  end
+  -- every enemy's nameplate, also the target's and the focus's. To keep the cost of a big pull
+  -- low, at most PLATES_PER_TICK nameplates are worked out per update, in turn (with 10
+  -- nameplates each one about once a second); the others keep their last numbers meanwhile
+  local list = {}
+  for token, v in pairs(plateViews) do
+    local t = plateTracks[token] and TrackFor(token)
+    if t and (t == views[1].track or t == views[2].track) then
+      -- the target's and the focus's nameplates on every update, like their frames: the same
+      -- number in both places at all times
+      local f = PlateFrame(token)
+      if f and f ~= v.anchor then Place(v) end
+      if db.locked and Enabled(v) and f then ShowFrom(v, t) else Attach(v, nil) end
     else
-      HideCells(v)
+      list[#list + 1] = token
     end
+  end
+  table.sort(list)
+  local n = #list
+  for i = 1, math.min(n, PLATES_PER_TICK) do
+    plateTurn = plateTurn % n + 1
+    local token = list[plateTurn]
+    local v = plateViews[token]
+    local f = plateTracks[token] and PlateFrame(token)
+    if f and f ~= v.anchor then Place(v) end
+    if db.locked and Enabled(v) and f then ShowFrom(v, TrackFor(token)) else Attach(v, nil) end
+  end
+  -- nameplates that went away or a lock change: hidden at once, not in their turn
+  for token, v in pairs(plateViews) do
+    if not (db.locked and Enabled(v) and plateTracks[token]) then Attach(v, nil) end
   end
 end
 ns.Update = Update
@@ -905,6 +990,7 @@ ev:SetScript("OnUpdate", function(_, elapsed)
   -- an error in here hides the seconds: no number is better than a wrong one
   if not pcall(Update) then
     for _, v in ipairs(views) do HideCells(v) end
+    for _, v in pairs(plateViews) do HideCells(v) end
     Broken()
   end
 end)
@@ -952,6 +1038,7 @@ local function OnEvent(_, event, a1)
     TargetChanged()
     FindPlates()
     if views[1] then Place(views[1]) end
+    if views[2] then Place(views[2]) end
   elseif event == "NAME_PLATE_UNIT_ADDED" then
     PlateAdded(a1)
     FindPlates()
