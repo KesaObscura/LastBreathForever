@@ -265,10 +265,10 @@ test("a client without the curve API: one warning, nothing shown, no error", fun
 end)
 
 test("broken saved settings are replaced by the defaults", function()
-  local ns = fresh({ db = { scale = "big", limit = 77, urgent = -1, icon = 5, point = "x", shots = true } })
+  local ns = fresh({ db = { scale = "big", limit = 77, urgent = -1, icon = 5, point = "x", shots = "yes" } })
   local d = ns.db
   assert(d.scale == 1 and d.limit == 300 and d.urgent == 10 and d.icon == true and d.point == nil)
-  assert(d.shots == nil, "the old test switch is dropped")
+  assert(d.shots == nil, "a broken test switch is dropped")
 end)
 
 test("unlocked: a sample shows, a fight locks the frame again", function()
@@ -453,6 +453,22 @@ test("unlocked with the focus frame: two plates, each keeps its own place", func
   assert(not M.visible(v2.plate), "switched off: no second plate")
 end)
 
+test("test builds: /lbf shots takes screenshots in boss fights, every 10 s, then switches off", function()
+  local ns = fresh()
+  local n = 0
+  Screenshot = function() n = n + 1 end
+  SlashCmdList.LASTBREATHFOREVER("shots")
+  assert(ns.db.shots == true)
+  M.fire("ENCOUNTER_START", 592)
+  M.target, M.hp = boss(), 1 M.fire("PLAYER_TARGET_CHANGED")
+  fight(25, 0.01)
+  assert(n == 3, "25 s: three screenshots, got " .. n)
+  SlashCmdList.LASTBREATHFOREVER("shots")
+  M.tick(20, 0)
+  assert(n == 3 and ns.db.shots == nil, "off")
+  Screenshot = nil
+end)
+
 test("/lbf check: one line per fight, no names, no secrets", function()
   local ns = fresh()
   local b = boss()
@@ -468,6 +484,7 @@ test("/lbf check: one line per fight, no names, no secrets", function()
   assert(list[1]:find("boss enc=592", 1, true) and list[1]:find("target[hits=8", 1, true), list[1])
   assert(list[1]:find("fighting%[y=%d+ n=%d+ %?=0%]"), list[1])
   assert(list[1]:find("same%[y=%d+ n=0 %?=0%]"), list[1])
+  assert(list[1]:find("plates%[.* shown=%d+ kept=%d+ reset=%d+%]"), list[1])
   for _, l in ipairs(list) do assert(type(l) == "string" and not issecretvalue(l) and not l:find("boss\"")) end
   SlashCmdList.LASTBREATHFOREVER("check")
   assert(#M.chat == 4, "title, two lines, the bug link")

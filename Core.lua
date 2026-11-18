@@ -138,7 +138,7 @@ local function InitDB()
     if p ~= nil and (type(p) ~= "table" or type(p[1]) ~= "number" or type(p[2]) ~= "number") then db[key] = nil end
   end
   if type(db.checks) ~= "table" then db.checks = {} end
-  db.shots = nil -- a switch of the test builds
+  if db.shots ~= true then db.shots = nil end -- test builds only: screenshots during fights
   ns.db = db
 end
 
@@ -253,7 +253,8 @@ local cur             -- the track of the current target among targetSlots, or n
 local plateTracks = {} -- [nameplate token] = track
 local platePool = {}   -- free tracks
 local platesOf = {}    -- ["target"] / ["focus"] = the track of that unit's nameplate, or nil
-local plateStat = { seen = 0, hits = 0, yes = 0, no = 0, unknown = 0 } -- for /lbf check
+local plateStat = { seen = 0, hits = 0, yes = 0, no = 0, unknown = 0, shown = 0, kept = 0, reset = 0 } -- for /lbf check
+local cost = { n = 0, sum = 0, max = 0 } -- milliseconds per update, for /lbf check
 local inCombat = false
 local encounter       -- the id of the running boss encounter, or nil
 
@@ -473,6 +474,7 @@ PlateRemoved = function(token)
   local asT, asF = platesOf.target == t, platesOf.focus == t
   if (asT or asF) and t.hit and Bool(UnitExists, asT and "target" or "focus") == true then
     t.unit, t.orphan = asT and "target" or "focus", true
+    plateStat.kept = plateStat.kept + 1
     return
   end
   if asT then platesOf.target = nil end
@@ -516,7 +518,7 @@ local function Evaded(t, now)
 end
 local function ForgetEvaded()
   local now = GetTime()
-  if Evaded(cur, now) then Clear(cur) end
+  if Evaded(cur, now) then Clear(cur) plateStat.reset = plateStat.reset + 1 end
   if Evaded(focusTrack, now) then Clear(focusTrack) end
   for _, t in pairs(plateTracks) do if Evaded(t, now) then Clear(t) end end
 end
@@ -1134,6 +1136,10 @@ local function Update()
     AddJob(plateViews[token], TrackFor(token))
   end
   for i = 1, nJobs do RunJob(jobs[i]) end
+  local shown = 0
+  for _, v in pairs(plateViews) do if v.track then shown = shown + 1 end end
+  if shown > plateStat.shown then plateStat.shown = shown end
+  ns.platesShown = shown
 end
 ns.Update = Update
 
@@ -1154,8 +1160,13 @@ local function CheckLine(why)
   for _, t in ipairs(targetSlots) do t.maxHits, t.asked, t.failed = 0, 0, 0 end
   add("focus", focusTrack)
   -- nameplates: how many enemies were followed, hits on them, did the game say which is the target
-  parts[#parts + 1] = string.format("plates[seen=%d hits=%d target y=%d n=%d ?=%d frame=%s]", plateStat.seen,
-    plateStat.hits, plateStat.yes, plateStat.no, plateStat.unknown, TargetPlateFrame() and "y" or "n")
+  parts[#parts + 1] = string.format("plates[seen=%d hits=%d target y=%d n=%d ?=%d frame=%s shown=%d kept=%d reset=%d]",
+    plateStat.seen, plateStat.hits, plateStat.yes, plateStat.no, plateStat.unknown, TargetPlateFrame() and "y" or "n",
+    plateStat.shown, plateStat.kept, plateStat.reset)
+  if cost.n > 0 then
+    parts[#parts + 1] = string.format("ms[avg=%.2f max=%.2f n=%d]", cost.sum / cost.n, cost.max, cost.n)
+  end
+  cost.n, cost.sum, cost.max = 0, 0, 0
   for k in pairs(plateStat) do plateStat[k] = 0 end
   parts[#parts + 1] = string.format("same[y=%d n=%d ?=%d]", same.yes, same.no, same.unknown)
   same.yes, same.no, same.unknown = 0, 0, 0
@@ -1183,7 +1194,23 @@ ev:SetScript("OnUpdate", function(_, elapsed)
   acc = 0
   if not ready then return end
   -- an error in here hides the seconds: no number is better than a wrong one
-  if not pcall(Update) then
+  local clock = type(debugprofilestop) == "function" and debugprofilestop or nil
+  local t0 = clock and clock()
+  local ok = pcall(Update)
+  if t0 and inCombat then
+    local ms = clock() - t0
+    cost.n, cost.sum = cost.n + 1, cost.sum + ms
+    if ms > cost.max then cost.max = ms end
+  end
+  -- test builds: a screenshot every 10 s in a boss fight or with seconds on 2+ nameplates
+  if db.shots and inCombat and (encounter or (ns.platesShown or 0) >= 2) and type(Screenshot) == "function" then
+    local now = GetTime()
+    if now - (ns.lastShot or 0) >= 10 and (ns.shotCount or 0) < 60 then
+      ns.lastShot, ns.shotCount = now, (ns.shotCount or 0) + 1
+      pcall(Screenshot)
+    end
+  end
+  if not ok then
     for _, v in ipairs(views) do HideCells(v) end
     for _, v in pairs(plateViews) do HideCells(v) end
     Broken()
@@ -1287,6 +1314,11 @@ SlashCmdList.LASTBREATHFOREVER = function(msg)
     if inCombat then Print("%s", L.msgLocked) else ns.SetLocked(false) end
   elseif msg == "reset" then
     ns.ResetPosition()
+  elseif msg == "shots" then
+    -- test builds only, not in the help: screenshots during fights
+    db.shots = not db.shots or nil
+    ns.shotCount = 0
+    Print("screenshots %s (every 10 s: bosses, 2+ nameplates with seconds; at most 60)", db.shots and "ON" or "off")
   elseif msg == "check" then
     Print("v%s, %d lines:", ns.VERSION, #db.checks)
     for i = math.max(1, #db.checks - 7), #db.checks do DEFAULT_CHAT_FRAME:AddMessage(db.checks[i]) end
