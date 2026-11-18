@@ -10,6 +10,7 @@ local function fresh(opts)
   M = dofile(dir .. "mock_wow.lua")
   if opts and opts.setup then opts.setup(M) end
   local ns = M.load(root)
+  if not (opts and opts.cycle) then ns.CYCLE = 0 end -- every update a full cycle (the game: 0.4 s)
   M.fire("ADDON_LOADED", "LastBreathForever")
   M.fire("PLAYER_ENTERING_WORLD")
   return ns
@@ -973,6 +974,61 @@ test("nameplates: the seconds stand at the chosen height above the nameplate", f
   ns.Apply()
   local p = v.hud.point
   assert(p and p[1] == "BOTTOM" and p[3] == "TOP" and math.abs(p[5] * ns.db.p.scale - 20) < 1e-6, "20 above")
+end)
+
+test("a big pull never stalls a frame: the work is spread over frames, a cycle every 0.4 s", function()
+  local ns = fresh({ db = { limit = 0, plateSame = true }, cycle = true })
+  local ms = 0
+  debugprofilestop = function() return ms end
+  local real = UnitHealthPercent
+  UnitHealthPercent = function(...) ms = ms + 0.05 return real(...) end -- each answer costs time
+  local ms_ = {}
+  for i = 1, 8 do ms_[i] = mob("m" .. i) M.showPlate(i, ms_[i]) end
+  M.target, M.hp = ms_[1], 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _, m in ipairs(ms_) do m.fighting = true end
+  local worst, frames = 0, 0
+  local function frame()
+    M.now = M.now + 0.02
+    local before = ms
+    M.ev.scripts.OnUpdate(M.ev, 0.02)
+    if ms - before > worst then worst = ms - before end
+    frames = frames + 1
+  end
+  for _ = 1, 10 do
+    for _, m in ipairs(ms_) do m.hp = m.hp - 0.03 M.hit(m) end
+    M.hp = ms_[1].hp
+    for _ = 1, 50 do frame() end
+  end
+  assert(worst < 3, "the most one frame took: " .. worst)
+  assert(shown(ns), "the target's seconds show")
+  UnitHealthPercent, debugprofilestop = real, nil
+end)
+
+test("nameplates: the seconds stand above the enemy's name (the target's nameplate is drawn bigger)", function()
+  local ns = fresh()
+  local b = mob("x")
+  M.showPlate(1, b)
+  local f = M.plateFrames[1]
+  local name, bar = CreateFrame("Frame"), CreateFrame("Frame")
+  name:Show()
+  f.UnitFrame = { name = name, healthBar = bar }
+  M.hidePlate(1) M.showPlate(1, b)
+  ns.Apply()
+  assert(ns.plateViews.nameplate1.hud.point[2] == name, "above the name")
+  name:Hide() ns.Apply()
+  assert(ns.plateViews.nameplate1.hud.point[2] == bar, "no name shown: above the bar")
+end)
+
+test("nameplates: 'Show from' only 30 s, 1 min or 1:30; old saved values are moved into it", function()
+  local ns = fresh({ db = { p = { limit = 0, scale = 0.7, icon = true, urgent = 30, elite = false } } })
+  assert(ns.db.p.limit == 30, "Always is no choice for the nameplates")
+  ns.ToggleOptions()
+  local lim
+  for _, x in ipairs(ns.optionsWindow.widgets.plateRows) do
+    if x.tipText == ns.L.tipPlateLimit and x.kind == "Button" and not lim then lim = x end
+  end
+  assert(lim, "the nameplates' own tooltip")
 end)
 
 for _, t in ipairs(tests) do

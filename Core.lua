@@ -26,6 +26,7 @@ local CAP = 3600           -- the longest estimate (seconds)
 local SLOTS = 8            -- targets remembered during one fight
 local PLATES = 20          -- enemies followed by their nameplates at once
 ns.LIMITS = { 0, 30, 60, 120, 300, 600 } -- "Show from": 0 = always
+ns.PLATE_LIMITS = { 30, 60, 90 } -- above nameplates: seconds only, up to 1:30
 ns.URGENTS = { 0, 5, 10, 15, 20, 30, 45, 60 } -- "Last seconds in red": 0 = off
 -- longer times read as minutes: "~2:30" (to 10 s) from LONG s up, "~12 min" from MINUTES s up
 local LONG, MINUTES = 90, 600
@@ -108,12 +109,12 @@ local function InitDB()
     if type(db[k]) ~= type(v) then db[k] = v end
   end
   -- the look of a frame: the target's lies in db itself, the focus' own in db.f
-  local function look(t)
+  local function look(t, limits)
     for _, k in ipairs(ns.LOOK) do
       if type(t[k]) ~= type(DEFAULTS[k]) then t[k] = DEFAULTS[k] end
     end
     if t.scale < 0.5 or t.scale > 3 then t.scale = DEFAULTS.scale end
-    if not InList(ns.LIMITS, t.limit) then t.limit = DEFAULTS.limit end
+    if not InList(limits or ns.LIMITS, t.limit) then t.limit = limits and limits[1] or DEFAULTS.limit end
     if not InList(ns.URGENTS, t.urgent) then t.urgent = DEFAULTS.urgent end
   end
   look(db)
@@ -127,7 +128,7 @@ local function InitDB()
     db.p = { scale = 0.6, icon = false, limit = 30, urgent = 5, elite = false }
   end
   if db.plateY < -20 or db.plateY > 60 then db.plateY = DEFAULTS.plateY end
-  look(db.p)
+  look(db.p, ns.PLATE_LIMITS)
   db.onPlate = nil -- an option of a test build
   local known = db.language == "auto"
   for _, l in ipairs(ns.LANGUAGES) do if l.code == db.language then known = true end end
@@ -589,6 +590,23 @@ end
 ns.Cfg = Cfg
 
 
+-- what the seconds stand on above a nameplate: its name (the target's nameplate is drawn
+-- bigger, its frame reaches far above the bar), else its health bar, else the nameplate itself
+local function Field(t, k)
+  local ok, x = pcall(function() return t[k] end)
+  if ok and type(x) == "table" and not IsSecret(x) then return x end
+end
+local function PlateAnchor(plate)
+  local uf = Field(plate, "UnitFrame")
+  if uf then
+    local name = Field(uf, "name")
+    if name and Bool(name.IsShown, name) == true then return name end
+    local bar = Field(uf, "healthBar") or Field(uf, "HealthBarsContainer")
+    if bar then return bar end
+  end
+  return plate
+end
+
 local function Place(v)
   local hud = v.hud
   local scale = Cfg(v).scale
@@ -599,7 +617,7 @@ local function Place(v)
   -- always there); its own place while unlocked or without one
   local plate = v.plateView and PlateFrame(v.unit) or nil
   v.anchor = plate
-  if plate and pcall(hud.SetPoint, hud, "BOTTOM", plate, "TOP", 0, db.plateY / scale) then
+  if plate and pcall(hud.SetPoint, hud, "BOTTOM", PlateAnchor(plate), "TOP", 0, db.plateY / scale) then
     return
   end
   v.anchor = nil
@@ -1029,8 +1047,10 @@ end
 -- a job: one count shown in all frames that have the same settings. The game is asked once per
 -- job, so the same enemy costs the same however many frames show it, and shows the same number
 local jobs, nJobs = {}, 0
+local collecting = false -- jobs are gathered only when a new cycle starts
 local function AddJob(v, t)
   Attach(v, t)
+  if not collecting then return end
   local cfg, plate = Cfg(v), v.plateView and true or false
   for i = 1, nJobs do
     local j = jobs[i]
@@ -1051,45 +1071,87 @@ local function HideJob(j)
   for i = 1, j.n do HideCells(j.views[i]) end
 end
 
-local function RunJob(j)
+-- the work of one update cycle, spread over the next frames: at most WORK_MS per frame, so a
+-- big pull never stalls a frame. A new cycle starts once the last one is done, every CYCLE s
+local CYCLE, WORK_MS = 0.4, 2
+local qi = 1          -- the job being worked on
+local qk = 0          -- its last band done
+local cycleAt, forceCycle = -1, true
+local workViews = {}
+local stats = { asked = 0, failed = 0 } -- the target frame's, for /lbf check
+
+-- what a job needs before its bands: hidden, the "counting" sign, or the seconds (true)
+local function Prepare(j)
   local t, cfg = j.t, j.cfg
-  if not Counting(t, cfg) then return HideJob(j) end
+  if not Counting(t, cfg) then HideJob(j) return false end
   -- enemies that are neither target nor focus wait for a few more hits
   local own = j.plate and t ~= chosen.target and t ~= chosen.focus
   if not Ready(t, own) then
-    if j.plate then return HideJob(j) end
+    if j.plate then HideJob(j) return false end
     -- a few hits or seconds still missing: only the "counting" sign
     for i = 1, j.n do
       for _, c in ipairs(j.views[i].cells) do c.num:SetAlpha(0) c.wait:SetAlpha(1) c.frame:Show() end
     end
-    return
+    return false
   end
-  -- the first hit already took its share of health but no time: count one average gap
-  -- between hits before it
   local now = GetTime()
-  local start = t.hit - (t.lastHit - t.hit) / (t.hits - 1)
-  local T = now - start
-  for i = 1, #SECONDS do fac[i] = SECONDS[i] / (SECONDS[i] + T) end
-  local long = false
+  j.long = false
   for i = 1, j.n do
     local v = j.views[i]
-    if now - (v.longAt or 0) >= 1 then long = true end
+    if now - (v.longAt or 0) >= 1 then j.long = true end
+    if v == views[1] then j.isTarget = true end
   end
-  if long then for i = 1, j.n do j.views[i].longAt = now end end
+  if j.long then for i = 1, j.n do j.views[i].longAt = now end end
   t.asked = t.asked + 1
-  ncs = j.n
-  for _, k in ipairs(t.bands) do
-    for i = 1, j.n do cs[i] = j.views[i].cells[k] end
-    if not ShowBand(t, k, T, cfg, long, j.plate) then
-      t.failed = t.failed + 1
-      HideJob(j)
-      Broken()
-      return
+  if j.isTarget then stats.asked = stats.asked + 1 end
+  return true
+end
+
+-- the seconds of the job's bands, from band `from` on, until the time of this frame is used up
+local function Work(clock, t0)
+  while qi <= nJobs do
+    local j = jobs[qi]
+    local t = j.t
+    -- only frames that still show this count (the target may have changed meanwhile)
+    ncs = 0
+    for i = 1, j.n do
+      if j.views[i].track == t then ncs = ncs + 1 cs[ncs] = j.views[i] end
     end
+    if ncs > 0 and qk == 0 then
+      -- the first hit already took its share of health but no time: count one average gap
+      -- between hits before it
+      local start = t.hit - (t.lastHit - t.hit) / (t.hits - 1)
+      j.T = GetTime() - start
+      for i = 1, #SECONDS do fac[i] = SECONDS[i] / (SECONDS[i] + j.T) end
+    end
+    local bands = t.bands
+    local failed = false
+    if ncs > 0 then
+      local vs = workViews
+      for i = 1, ncs do vs[i] = cs[i] end
+      while qk < #bands do
+        qk = qk + 1
+        local k = bands[qk]
+        for i = 1, ncs do cs[i] = vs[i].cells[k] end
+        if not ShowBand(t, k, j.T, j.cfg, j.long, j.plate) then failed = true break end
+        if clock and qk < #bands and clock() - t0 > WORK_MS then
+          return false -- go on in the next frame
+        end
+      end
+      if failed then
+        t.failed = t.failed + 1
+        if j.isTarget then stats.failed = stats.failed + 1 end
+        for i = 1, ncs do HideCells(vs[i]) end
+        Broken()
+      else
+        for i = 1, ncs do
+          for _, c in ipairs(vs[i].cells) do c.frame:Show() end
+        end
+      end
+    end
+    qi, qk = qi + 1, 0
   end
-  for i = 1, j.n do
-    for _, c in ipairs(j.views[i].cells) do c.frame:Show() end
-  end
+  return true
 end
 
 local plateTurn = 0
@@ -1098,18 +1160,27 @@ local list = {}
 local function Update()
   ForgetEvaded()
   Resolve()
-  nJobs = 0
+  local now = GetTime()
+  local cycle = ns.CYCLE or CYCLE
+  collecting = qi > nJobs and (forceCycle or cycle <= 0 or now - cycleAt >= cycle)
+  if forceCycle and not collecting then
+    -- a new target or focus: the cycle running is dropped, its numbers would come late
+    qi, qk, collecting = nJobs + 1, 0, true
+  end
+  if collecting then
+    nJobs, qi, qk, cycleAt, forceCycle = 0, 1, 0, now, false
+  end
   -- target and focus: each in its own frame
   for _, v in ipairs(views) do
     local t = nil
     if db.locked and Enabled(v) and Hostile(v.unit) then t = TrackFor(v.unit) end
+    if t and not Counting(t, Cfg(v)) then t = nil end
     if t then AddJob(v, t) else Attach(v, nil) HideCells(v) end
   end
   -- the seconds above nameplates. The target's and the focus's on every update (the same
   -- number as their frames at all times); the others, to keep a big pull cheap, at most
   -- PLATES_PER_TICK per update in turn, keeping their last numbers meanwhile. Enemies that died,
   -- went away or have not been hit for a while show nothing, at once
-  local now = GetTime()
   local n = 0
   for token, v in pairs(plateViews) do
     local t = plateTracks[token] and TrackFor(token)
@@ -1130,18 +1201,30 @@ local function Update()
   end
   for i = n + 1, #list do list[i] = nil end
   table.sort(list)
-  for _ = 1, math.min(n, PLATES_PER_TICK) do
-    plateTurn = plateTurn % n + 1
-    local token = list[plateTurn]
-    AddJob(plateViews[token], TrackFor(token))
+  if collecting then
+    for _ = 1, math.min(n, PLATES_PER_TICK) do
+      plateTurn = plateTurn % n + 1
+      local token = list[plateTurn]
+      AddJob(plateViews[token], TrackFor(token))
+    end
+    -- the cheap part at once; jobs with seconds to work out stay in the list for Work
+    local m = 0
+    for i = 1, nJobs do
+      local j = jobs[i]
+      if Prepare(j) then
+        m = m + 1
+        jobs[i], jobs[m] = jobs[m], j
+      end
+    end
+    nJobs = m
   end
-  for i = 1, nJobs do RunJob(jobs[i]) end
   local shown = 0
   for _, v in pairs(plateViews) do if v.track then shown = shown + 1 end end
   if shown > plateStat.shown then plateStat.shown = shown end
   ns.platesShown = shown
 end
 ns.Update = Update
+ns.ForceCycle = function() forceCycle = true end
 
 ------------------------------------------------------------------------
 -- what the game answered (for bug reports): /lbf check
@@ -1156,6 +1239,8 @@ local function CheckLine(why)
   end
   local best = targetSlots[1]
   for _, t in ipairs(targetSlots) do if t.maxHits > best.maxHits then best = t end end
+  best.asked, best.failed = stats.asked, stats.failed
+  stats.asked, stats.failed = 0, 0
   add("target", best)
   for _, t in ipairs(targetSlots) do t.maxHits, t.asked, t.failed = 0, 0, 0 end
   add("focus", focusTrack)
@@ -1189,19 +1274,25 @@ local ev = CreateFrame("Frame")
 local acc = 0
 local ready = false
 ev:SetScript("OnUpdate", function(_, elapsed)
-  acc = acc + elapsed
-  if acc < TICK then return end
-  acc = 0
   if not ready then return end
-  -- an error in here hides the seconds: no number is better than a wrong one
+  acc = acc + elapsed
   local clock = type(debugprofilestop) == "function" and debugprofilestop or nil
   local t0 = clock and clock()
-  local ok = pcall(Update)
+  -- an error in here hides the seconds: no number is better than a wrong one
+  local ok = true
+  if acc >= TICK then
+    acc = 0
+    ok = pcall(Update)
+  end
+  if ok and qi <= nJobs then ok = pcall(Work, clock, t0) end
   if t0 and inCombat then
     local ms = clock() - t0
-    cost.n, cost.sum = cost.n + 1, cost.sum + ms
-    if ms > cost.max then cost.max = ms end
+    if ms > 0.05 then
+      cost.n, cost.sum = cost.n + 1, cost.sum + ms
+      if ms > cost.max then cost.max = ms end
+    end
   end
+  if acc ~= 0 and ok then return end
   -- test builds: a screenshot every 10 s in a boss fight or with seconds on 2+ nameplates
   if db.shots and inCombat and (encounter or (ns.platesShown or 0) >= 2) and type(Screenshot) == "function" then
     local now = GetTime()
@@ -1269,6 +1360,7 @@ local function OnEvent(_, event, a1)
   elseif event == "PLAYER_TARGET_CHANGED" then
     DropOrphan("target")
     TargetChanged()
+    forceCycle = true
     FindPlates()
     if views[1] then Place(views[1]) end
     if views[2] then Place(views[2]) end
@@ -1280,6 +1372,7 @@ local function OnEvent(_, event, a1)
   elseif event == "PLAYER_FOCUS_CHANGED" then
     DropOrphan("focus")
     FocusChanged()
+    forceCycle = true
     FindPlates()
   elseif event == "ENCOUNTER_START" then
     encounter = Plain(function() return a1 end) or 0

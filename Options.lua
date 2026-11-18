@@ -322,7 +322,7 @@ Build = function()
 
   -- the five settings of one frame, the same rows in both columns. cfg() = the table they
   -- are read and written; enabledIf() false greys them out
-  local function Column(x, y, cfg, enabledIf, changed)
+  local function Column(x, y, cfg, enabledIf, changed, plates)
     local function at(widget, dy)
       widget:SetPoint("TOPLEFT", win, "TOPLEFT", x, y)
       y = y - (dy or ROW)
@@ -334,10 +334,15 @@ Build = function()
         next = function(v, dir) return math.max(0.5, math.min(3, math.floor((v + dir * 0.1) * 10 + 0.5) / 10)) end },
       enabledIf)
     at(size.label)
-    local limit = Stepper(win, L.optLimit, L.tipLimit,
+    -- above nameplates: only up to 1:30 (their own list; the target's when they follow it)
+    local limit = Stepper(win, L.optLimit, plates and L.tipPlateLimit or L.tipLimit,
       function() return cfg().limit end,
       function(v) cfg().limit = v end,
-      { fmt = function(v) return v == 0 and L.optAlways or string.format(L.fmtSecShort, v) end, next = InList(ns.LIMITS) },
+      { fmt = function(v) return v == 0 and L.optAlways or string.format(L.fmtSecShort, v) end,
+        next = function(v, dir)
+          local list = (plates and cfg() == db.p) and ns.PLATE_LIMITS or ns.LIMITS
+          return InList(list)(v, dir)
+        end },
       enabledIf)
     at(limit.label)
     local urgent = Stepper(win, L.optUrgent, L.tipUrgent,
@@ -399,7 +404,7 @@ Build = function()
   plateSame:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY - 52)
   control(plates, allPlates, plateSame)
   local py, plateRows = Column(PX + IN, rowsY, function() return db.plateSame and db or db.p end,
-    function() return db.plates and db.allPlates and not db.plateSame end, ns.Apply)
+    function() return db.plates and db.allPlates and not db.plateSame end, ns.Apply, true)
   -- a sixth row only here: how high above the nameplate
   local plateY = Stepper(win, L.optPlateY, L.tipPlateY,
     function() return db.plateY end,

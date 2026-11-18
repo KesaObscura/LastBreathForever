@@ -66,7 +66,8 @@ T.enUS = {
   optPlateY = "Height above the nameplate",
   tipPlateY = "How high the seconds stand above an enemy's nameplate. Raise them when other addons show something there.",
   noteTarget = "The seconds of your current target.",
-  tipSamePlates = "The nameplates look and behave like the target frame. Untick to give them their own size and rules.",
+  tipSamePlates = "The nameplates look and behave like the target frame. Untick to give them their own size and rules. Above the nameplates the seconds show from 1:30 at most.",
+  tipPlateLimit = "The seconds above the nameplates only show once the enemy has about this long left or less (at most 1:30).",
 }
 
 T.deDE = {
@@ -129,7 +130,8 @@ T.deDE = {
   optPlateY = "Höhe über der Namensplakette",
   tipPlateY = "Wie hoch die Sekunden über der Namensplakette eines Gegners stehen. Höher stellen, wenn andere Addons dort etwas zeigen.",
   noteTarget = "Die Sekunden deines aktuellen Ziels.",
-  tipSamePlates = "Die Namensplaketten sehen aus und verhalten sich wie der Zielrahmen. Entferne den Haken für eigene Größe und Regeln.",
+  tipSamePlates = "Die Namensplaketten sehen aus und verhalten sich wie der Zielrahmen. Entferne den Haken für eigene Größe und Regeln. Über den Namensplaketten erscheinen die Sekunden höchstens ab 1:30.",
+  tipPlateLimit = "Die Sekunden über den Namensplaketten erscheinen erst, wenn der Gegner ungefähr noch so lange oder kürzer lebt (höchstens 1:30).",
 }
 
 T.ruRU = {
@@ -192,7 +194,8 @@ T.ruRU = {
   optPlateY = "Высота над табличкой",
   tipPlateY = "Насколько высоко секунды стоят над табличкой врага. Подними их, если там что-то показывают другие аддоны.",
   noteTarget = "Секунды твоей текущей цели.",
-  tipSamePlates = "Таблички выглядят и ведут себя как рамка цели. Сними галочку, чтобы задать им свой размер и правила.",
+  tipSamePlates = "Таблички выглядят и ведут себя как рамка цели. Сними галочку, чтобы задать им свой размер и правила. Над табличками секунды показываются не раньше чем с 1:30.",
+  tipPlateLimit = "Секунды над табличками появляются, только когда врагу осталось примерно столько или меньше (не больше 1:30).",
 }
 
 T.esES = {
@@ -255,7 +258,8 @@ T.esES = {
   optPlateY = "Altura sobre la placa",
   tipPlateY = "A qué altura quedan los segundos sobre la placa de un enemigo. Súbelos si otros addons muestran algo ahí.",
   noteTarget = "Los segundos de tu objetivo actual.",
-  tipSamePlates = "Las placas de nombre se ven y se comportan como el marco del objetivo. Desmárcalo para darles su propio tamaño y sus reglas.",
+  tipSamePlates = "Las placas de nombre se ven y se comportan como el marco del objetivo. Desmárcalo para darles su propio tamaño y sus reglas. Sobre las placas, los segundos aparecen como mucho desde 1:30.",
+  tipPlateLimit = "Los segundos sobre las placas solo aparecen cuando al enemigo le queda más o menos este tiempo o menos (como mucho 1:30).",
 }
 
 T.frFR = {
@@ -318,7 +322,8 @@ T.frFR = {
   optPlateY = "Hauteur au-dessus de la barre",
   tipPlateY = "La hauteur des secondes au-dessus de la barre de nom d'un ennemi. Monte-les si d'autres addons affichent quelque chose à cet endroit.",
   noteTarget = "Les secondes de ta cible actuelle.",
-  tipSamePlates = "Les barres de nom ressemblent au cadre de la cible et se comportent de même. Décoche pour leur donner leur propre taille et leurs règles.",
+  tipSamePlates = "Les barres de nom ressemblent au cadre de la cible et se comportent de même. Décoche pour leur donner leur propre taille et leurs règles. Au-dessus des barres de nom, les secondes apparaissent au plus tôt à 1:30.",
+  tipPlateLimit = "Les secondes au-dessus des barres de nom n'apparaissent que lorsqu'il reste à peu près ce temps ou moins à l'ennemi (1:30 au plus).",
 }
 
 T.ptBR = {
@@ -381,7 +386,8 @@ T.ptBR = {
   optPlateY = "Altura acima da placa",
   tipPlateY = "A altura dos segundos acima da placa de um inimigo. Suba-os se outros addons mostram algo ali.",
   noteTarget = "Os segundos do seu alvo atual.",
-  tipSamePlates = "As placas de nome têm a aparência e o comportamento do quadro do alvo. Desmarque para dar a elas tamanho e regras próprios.",
+  tipSamePlates = "As placas de nome têm a aparência e o comportamento do quadro do alvo. Desmarque para dar a elas tamanho e regras próprios. Acima das placas, os segundos aparecem no máximo a partir de 1:30.",
+  tipPlateLimit = "Os segundos acima das placas só aparecem quando restar mais ou menos esse tempo ou menos ao inimigo (no máximo 1:30).",
 }
 
 T.koKR = {
@@ -444,7 +450,8 @@ T.koKR = {
   optPlateY = "이름표 위 높이",
   tipPlateY = "적 이름표 위에 초가 표시되는 높이입니다. 다른 애드온이 그 자리에 무언가를 표시하면 올리세요.",
   noteTarget = "현재 대상의 초입니다.",
-  tipSamePlates = "이름표가 대상 창과 같은 모양과 방식으로 동작합니다. 체크를 풀면 크기와 규칙을 따로 정할 수 있습니다.",
+  tipSamePlates = "이름표가 대상 창과 같은 모양과 방식으로 동작합니다. 체크를 풀면 크기와 규칙을 따로 정할 수 있습니다. 이름표 위에서는 최대 1:30부터 초가 표시됩니다.",
+  tipPlateLimit = "이름표 위의 초는 적이 대략 이 시간 이하로 남았을 때만 표시됩니다(최대 1:30).",
 }
 
 T.zhCN = {
@@ -507,7 +514,8 @@ T.zhCN = {
   optPlateY = "姓名板上方高度",
   tipPlateY = "秒数在敌人姓名板上方的高度。如果其他插件在那里显示内容，就调高。",
   noteTarget = "你当前目标的秒数。",
-  tipSamePlates = "姓名板的外观和行为与目标框相同。取消勾选可为它们单独设置大小和规则。",
+  tipSamePlates = "姓名板的外观和行为与目标框相同。取消勾选可为它们单独设置大小和规则。 姓名板上方的秒数最早从 1:30 开始显示。",
+  tipPlateLimit = "姓名板上方的秒数只在敌人大约还剩这么久或更短时显示（最多 1:30）。",
 }
 
 T.zhTW = {
@@ -570,7 +578,8 @@ T.zhTW = {
   optPlateY = "姓名板上方高度",
   tipPlateY = "秒數在敵人姓名板上方的高度。如果其他插件在那裡顯示內容，就調高。",
   noteTarget = "你當前目標的秒數。",
-  tipSamePlates = "名條的外觀和行為與目標框相同。取消勾選可為它們單獨設定大小和規則。",
+  tipSamePlates = "名條的外觀和行為與目標框相同。取消勾選可為它們單獨設定大小和規則。 姓名板上方的秒數最早從 1:30 開始顯示。",
+  tipPlateLimit = "姓名板上方的秒數只在敵人大約還剩這麼久或更短時顯示（最多 1:30）。",
 }
 
 T.esMX = T.esES
