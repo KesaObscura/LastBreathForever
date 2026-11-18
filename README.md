@@ -28,7 +28,9 @@ of the Forever series with [Full Mana Forever](https://github.com/KesaObscura/Fu
   too little. Meanwhile a dim icon shows that the addon is counting.
 - **Joined late?** A target that was already hurt gets its seconds too, a little later: once it
   has lost some more health.
-- **Back to the same target** in the open world: its seconds are there at once.
+- **Follows enemies by their nameplates**, also while they are not your target: take one into
+  your target and its seconds are there at once. Bosses and adds alike, also in dungeons.
+- **Above the target's nameplate** (optional), or anywhere you place the frame.
 - **Last seconds in red**: from 5 s up to a minute before the end (10 s by default), for the
   cooldowns, trinkets and potions you keep for the finish.
 - **Focus frame** (optional): a second frame with the seconds of your focus, with the target

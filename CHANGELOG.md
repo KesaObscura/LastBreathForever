@@ -1,3 +1,9 @@
+**Last Breath Forever 0.2.0**
+
+- **Follows enemies by their nameplates**, also while they are not your target: take one into your target and its seconds are there at once. Bosses and adds alike, also in dungeons when you switch between them. Needs the enemy nameplates switched on (on by default, can be switched off).
+- **Above the target's nameplate** (optional): the target frame stands right above the target's nameplate, and goes back to its own place without one.
+- Target, focus and nameplate can be the same enemy: both frames then show the same seconds from one count.
+
 **Last Breath Forever 0.1.1**
 
 - The icon now matches the other addons of the Forever series: the same circle, glow and infinity sign.

@@ -50,7 +50,6 @@ T.enUS = {
   hudFocus = "Focus",
   help5 = "/lbf check - what the game answered in the last fights (for bug reports)",
   optTarget = "Target",
-  noteTarget = "The seconds of your current target.",
   optSame = "Same settings as the target",
   tipSame = "The focus frame looks and behaves like the target frame. Untick to give it its own size and rules.",
   optLang = "Language",
@@ -59,6 +58,10 @@ T.enUS = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d min",
   bugReport = "Bug reports and ideas: %s",
+  optOnPlate = "Above the target's nameplate",
+  tipOnPlate = "The target frame stands right above the target's nameplate. Without a nameplate (switched off, out of sight) it stays where you placed it.",
+  optPlates = "Follow enemies by their nameplates",
+  tipPlates = "Counts every enemy with a visible nameplate, also while it is not your target: take it into your target, and its seconds are there at once. Bosses and adds alike. Needs the enemy nameplates switched on.",
 }
 
 T.deDE = {
@@ -105,7 +108,6 @@ T.deDE = {
   hudFocus = "Fokus",
   help5 = "/lbf check - was das Spiel in den letzten Kämpfen geantwortet hat (für Fehlerberichte)",
   optTarget = "Ziel",
-  noteTarget = "Die Sekunden deines aktuellen Ziels.",
   optSame = "Gleiche Einstellungen wie beim Ziel",
   tipSame = "Der Fokusrahmen sieht aus und verhält sich wie der Zielrahmen. Entferne den Haken für eigene Größe und Regeln.",
   optLang = "Sprache",
@@ -114,6 +116,10 @@ T.deDE = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d Min.",
   bugReport = "Fehlerberichte und Ideen: %s",
+  optOnPlate = "Über der Namensplakette des Ziels",
+  tipOnPlate = "Der Zielrahmen steht direkt über der Namensplakette des Ziels. Ohne Plakette (ausgeschaltet, nicht in Sicht) bleibt er, wo du ihn hingestellt hast.",
+  optPlates = "Gegnern über ihre Namensplaketten folgen",
+  tipPlates = "Zählt jeden Gegner mit sichtbarer Namensplakette, auch wenn er nicht dein Ziel ist: Nimmst du ihn ins Ziel, sind seine Sekunden sofort da. Bosse und Adds gleichermaßen. Die gegnerischen Namensplaketten müssen eingeschaltet sein.",
 }
 
 T.ruRU = {
@@ -160,7 +166,6 @@ T.ruRU = {
   hudFocus = "Фокус",
   help5 = "/lbf check - что игра ответила в последних боях (для сообщений об ошибках)",
   optTarget = "Цель",
-  noteTarget = "Секунды твоей текущей цели.",
   optSame = "Те же настройки, что у цели",
   tipSame = "Рамка фокуса выглядит и ведёт себя как рамка цели. Сними галочку, чтобы задать ей свой размер и правила.",
   optLang = "Язык",
@@ -169,6 +174,10 @@ T.ruRU = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d мин",
   bugReport = "Баги и идеи: %s",
+  optOnPlate = "Над табличкой цели",
+  tipOnPlate = "Рамка цели стоит прямо над табличкой цели. Без таблички (выключены, моб не виден) она остаётся там, где ты её поставил.",
+  optPlates = "Следить за врагами по табличкам",
+  tipPlates = "Считает каждого врага с видимой табличкой, даже если он не в цели: берёшь его в цель — и его секунды сразу на месте. И боссы, и адды. Нужны включённые таблички врагов.",
 }
 
 T.esES = {
@@ -215,7 +224,6 @@ T.esES = {
   hudFocus = "Foco",
   help5 = "/lbf check - lo que respondió el juego en los últimos combates (para informes de errores)",
   optTarget = "Objetivo",
-  noteTarget = "Los segundos de tu objetivo actual.",
   optSame = "Los mismos ajustes que el objetivo",
   tipSame = "El marco del foco se ve y se comporta como el del objetivo. Desmárcalo para darle su propio tamaño y sus reglas.",
   optLang = "Idioma",
@@ -224,6 +232,10 @@ T.esES = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d min",
   bugReport = "Errores e ideas: %s",
+  optOnPlate = "Sobre la placa de nombre del objetivo",
+  tipOnPlate = "El marco del objetivo se coloca justo encima de su placa de nombre. Sin placa (desactivada, fuera de vista) se queda donde lo pusiste.",
+  optPlates = "Seguir a los enemigos por sus placas de nombre",
+  tipPlates = "Cuenta cada enemigo con una placa de nombre visible, aunque no sea tu objetivo: cuando lo seleccionas, sus segundos aparecen al momento. Jefes y adds por igual. Las placas de nombre enemigas deben estar activadas.",
 }
 
 T.frFR = {
@@ -270,7 +282,6 @@ T.frFR = {
   hudFocus = "Focalisation",
   help5 = "/lbf check - ce que le jeu a répondu lors des derniers combats (pour les rapports de bug)",
   optTarget = "Cible",
-  noteTarget = "Les secondes de ta cible actuelle.",
   optSame = "Mêmes réglages que la cible",
   tipSame = "Le cadre de la focalisation ressemble à celui de la cible et se comporte de même. Décoche pour lui donner sa propre taille et ses règles.",
   optLang = "Langue",
@@ -279,6 +290,10 @@ T.frFR = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d min",
   bugReport = "Bugs et idées : %s",
+  optOnPlate = "Au-dessus de la barre de nom de la cible",
+  tipOnPlate = "Le cadre de la cible se place juste au-dessus de sa barre de nom. Sans barre (désactivée, hors de vue), il reste là où tu l'as mis.",
+  optPlates = "Suivre les ennemis par leurs barres de nom",
+  tipPlates = "Compte chaque ennemi dont la barre de nom est visible, même s'il n'est pas ta cible : quand tu le cibles, ses secondes sont là tout de suite. Boss et adds de la même façon. Les barres de nom ennemies doivent être activées.",
 }
 
 T.ptBR = {
@@ -325,7 +340,6 @@ T.ptBR = {
   hudFocus = "Foco",
   help5 = "/lbf check - o que o jogo respondeu nos últimos combates (para relatos de erro)",
   optTarget = "Alvo",
-  noteTarget = "Os segundos do seu alvo atual.",
   optSame = "As mesmas configurações do alvo",
   tipSame = "O quadro do foco tem a aparência e o comportamento do quadro do alvo. Desmarque para dar a ele tamanho e regras próprios.",
   optLang = "Idioma",
@@ -334,6 +348,10 @@ T.ptBR = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d min",
   bugReport = "Bugs e ideias: %s",
+  optOnPlate = "Acima da placa de nome do alvo",
+  tipOnPlate = "O quadro do alvo fica logo acima da placa de nome do alvo. Sem placa (desligada, fora de vista), ele fica onde você o colocou.",
+  optPlates = "Seguir inimigos pelas placas de nome",
+  tipPlates = "Conta cada inimigo com placa de nome visível, mesmo quando não é o seu alvo: ao selecioná-lo, os segundos dele aparecem na hora. Chefes e adds igualmente. As placas de nome dos inimigos precisam estar ligadas.",
 }
 
 T.koKR = {
@@ -380,7 +398,6 @@ T.koKR = {
   hudFocus = "주시 대상",
   help5 = "/lbf check - 최근 전투에서 게임이 응답한 내용 (오류 보고용)",
   optTarget = "대상",
-  noteTarget = "현재 대상의 초입니다.",
   optSame = "대상과 같은 설정",
   tipSame = "주시 대상 창이 대상 창과 같은 모양과 방식으로 동작합니다. 체크를 풀면 크기와 규칙을 따로 정할 수 있습니다.",
   optLang = "언어",
@@ -389,6 +406,10 @@ T.koKR = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d분",
   bugReport = "버그 신고와 아이디어: %s",
+  optOnPlate = "대상 이름표 위에 표시",
+  tipOnPlate = "대상 창이 대상의 이름표 바로 위에 붙습니다. 이름표가 없으면(꺼짐, 시야 밖) 직접 놓은 자리에 그대로 있습니다.",
+  optPlates = "이름표로 적 추적",
+  tipPlates = "이름표가 보이는 모든 적을 대상이 아니어도 계속 셉니다. 대상으로 잡으면 초가 바로 나타납니다. 우두머리와 추가 몹 모두. 적 이름표가 켜져 있어야 합니다.",
 }
 
 T.zhCN = {
@@ -435,7 +456,6 @@ T.zhCN = {
   hudFocus = "焦点",
   help5 = "/lbf check - 最近几场战斗中游戏的响应（用于错误报告）",
   optTarget = "目标",
-  noteTarget = "你当前目标的秒数。",
   optSame = "与目标相同的设置",
   tipSame = "焦点框的外观和行为与目标框相同。取消勾选可为它单独设置大小和规则。",
   optLang = "语言",
@@ -444,6 +464,10 @@ T.zhCN = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d 分钟",
   bugReport = "错误报告与建议：%s",
+  optOnPlate = "显示在目标姓名板上方",
+  tipOnPlate = "目标框紧贴在目标姓名板的上方。没有姓名板时（已关闭、不在视野内），它留在你放置的位置。",
+  optPlates = "通过姓名板追踪敌人",
+  tipPlates = "统计每个姓名板可见的敌人，即使它不是你的目标：选中它时，它的秒数立刻出现。首领和小怪都一样。需要开启敌方姓名板。",
 }
 
 T.zhTW = {
@@ -490,7 +514,6 @@ T.zhTW = {
   hudFocus = "專注",
   help5 = "/lbf check - 最近幾場戰鬥中遊戲的回應（用於錯誤回報）",
   optTarget = "目標",
-  noteTarget = "你當前目標的秒數。",
   optSame = "與目標相同的設定",
   tipSame = "專注框的外觀和行為與目標框相同。取消勾選可為它單獨設定大小和規則。",
   optLang = "語言",
@@ -499,6 +522,10 @@ T.zhTW = {
   fmtMss = "~%d:%d0",
   fmtMin = "~%d 分鐘",
   bugReport = "錯誤回報與建議：%s",
+  optOnPlate = "顯示在目標名條上方",
+  tipOnPlate = "目標框緊貼在目標名條的上方。沒有名條時（已關閉、不在視野內），它留在你放置的位置。",
+  optPlates = "透過名條追蹤敵人",
+  tipPlates = "統計每個名條可見的敵人，即使它不是你的目標：選中它時，它的秒數立刻出現。首領和小怪都一樣。需要開啟敵方名條。",
 }
 
 T.esMX = T.esES

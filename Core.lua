@@ -3,7 +3,7 @@
 -- The game works the seconds out itself and hands back a value that can only be shown.
 
 local ADDON, ns = ...
-ns.VERSION = "0.1.1"
+ns.VERSION = "0.2.0"
 local L = ns.L
 local Skin = ns.Skin
 
@@ -20,6 +20,7 @@ local LOST_SOLO, LOST_HURT = 0.05, 0.075
 local GROUP_TIME, LOST_GROUP, LOST_EARLY = 10, 0.03, 0.20
 local CAP = 3600           -- the longest estimate (seconds)
 local SLOTS = 8            -- targets remembered during one fight
+local PLATES = 20          -- enemies followed by their nameplates at once
 ns.LIMITS = { 0, 30, 60, 120, 300, 600 } -- "Show from": 0 = always
 ns.URGENTS = { 0, 5, 10, 15, 20, 30, 45, 60 } -- "Last seconds in red": 0 = off
 -- longer times read as minutes: "~2:30" (to 10 s) from LONG s up, "~12 min" from MINUTES s up
@@ -36,6 +37,8 @@ local DEFAULTS = {
   elite = false,   -- only elite, rare and boss targets
   focus = false,   -- a second frame for the focus
   focusSame = true, -- the focus frame uses the target frame's settings
+  plates = true,   -- follow enemies by their nameplates, also while they are not the target
+  onPlate = false, -- the target frame above the target's nameplate
   language = "auto", -- "auto" = the game's language, else one of ns.LANGUAGES
 }
 ns.DEFAULTS = DEFAULTS
@@ -221,6 +224,13 @@ local root            -- parent of all tracks' frames; it carries the size
 local targetSlots = {} -- tracks of "target": several, so a target met again keeps its count
 local focusTrack
 local cur             -- the track of the current target among targetSlots, or nil
+-- enemies with a nameplate: counted from their first hit while they are not the target, so
+-- their seconds are there the moment they become it (also in dungeons, where a target met
+-- again cannot be told apart otherwise)
+local plateTracks = {} -- [nameplate token] = track
+local platePool = {}   -- free tracks
+local platesOf = {}    -- ["target"] / ["focus"] = the track of that unit's nameplate, or nil
+local plateStat = { seen = 0, hits = 0, yes = 0, no = 0, unknown = 0 } -- for /lbf check
 local inCombat = false
 local encounter       -- the id of the running boss encounter, or nil
 
@@ -327,8 +337,56 @@ local function FocusChanged()
   Clear(focusTrack)
 end
 
+-- which nameplate is the target and which the focus (nil: none, or the game does not say)
+local function FindPlates()
+  for _, unit in ipairs({ "target", "focus" }) do
+    platesOf[unit] = nil
+    if db.plates and Bool(UnitExists, unit) == true then
+      for token, t in pairs(plateTracks) do
+        local r = Bool(UnitIsUnit, unit, token)
+        if r == true then plateStat.yes = plateStat.yes + 1 platesOf[unit] = t break
+        elseif r == false then plateStat.no = plateStat.no + 1
+        else plateStat.unknown = plateStat.unknown + 1 end
+      end
+    end
+  end
+end
+
+local function PlateAdded(token)
+  if not db.plates or type(token) ~= "string" or plateTracks[token] then return end
+  if not Hostile(token) then return end
+  local t = table.remove(platePool)
+  if not t then
+    local n = 0
+    for _ in pairs(plateTracks) do n = n + 1 end
+    if n >= PLATES then return end
+    t = NewTrack(token)
+  end
+  t.unit = token
+  Clear(t)
+  plateTracks[token] = t
+  plateStat.seen = plateStat.seen + 1
+end
+
+local function PlateRemoved(token)
+  local t = plateTracks[token]
+  if not t then return end
+  plateTracks[token] = nil
+  Clear(t)
+  platePool[#platePool + 1] = t
+  for unit, x in pairs(platesOf) do if x == t then platesOf[unit] = nil end end
+end
+
+local function PlateHit(token)
+  local t = plateTracks[token]
+  if not t then return end
+  plateStat.hits = plateStat.hits + 1
+  Hit(t)
+end
+
 local function ForgetAll()
   for _, t in ipairs(targetSlots) do Clear(t) t.used = 0 end
+  for _, t in pairs(plateTracks) do Clear(t) end
   Clear(focusTrack)
   useCount = 0
   cur = nil
@@ -344,12 +402,22 @@ local function Same(a, b)
   return r
 end
 
--- the track a frame shows: the focus for as long as it is the focus (also in the target frame
--- when the target is the focus), any other target since it became the target
+-- the track a frame shows. Target, focus and a nameplate can all be the same enemy: then the
+-- count that began first (the longest) is used, in both frames alike, never two counts mixed
 local function TrackFor(unit)
-  if unit == "focus" then return focusTrack end
-  if db.focus and focusTrack.hit and Same("target", "focus") == true then return focusTrack end
-  return cur
+  local best = unit == "focus" and focusTrack or cur
+  local function take(t)
+    if t and t.hit and not (best and best.hit and best.hit <= t.hit) then best = t end
+  end
+  take(platesOf[unit])
+  if unit == "target" and db.focus and focusTrack.hit and Same("target", "focus") == true then
+    take(focusTrack)
+    take(platesOf.focus)
+  elseif unit == "focus" and cur and cur.hit and Same("focus", "target") == true then
+    take(cur)
+    take(platesOf.target)
+  end
+  return best
 end
 
 ------------------------------------------------------------------------
@@ -373,12 +441,29 @@ local function Cfg(v)
 end
 ns.Cfg = Cfg
 
+-- the target's nameplate frame, when the game shows one
+local function TargetPlateFrame()
+  local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
+  if type(get) ~= "function" then return nil end
+  local ok, f = pcall(get, "target")
+  if not ok or IsSecret(f) or type(f) ~= "table" then return nil end
+  return f
+end
+
 local function Place(v)
   local hud = v.hud
   local scale = Cfg(v).scale
   hud:SetScale(scale)
   hud:ClearAllPoints()
   local p = db[v.pointKey]
+  -- above the target's nameplate while locked; its own place while unlocked or without one
+  local plate = v.unit == "target" and db.onPlate and db.locked and TargetPlateFrame()
+  v.onPlate = plate and true or false
+  if plate and pcall(hud.SetPoint, hud, "BOTTOM", plate, "TOP", 0, 2) then
+    return
+  end
+  v.onPlate = false
+  hud:ClearAllPoints()
   if p then
     -- the point is kept in screen units, so a new size leaves the frame where it is
     hud:SetPoint("CENTER", UIParent, "BOTTOMLEFT", p[1] / scale, p[2] / scale)
@@ -536,6 +621,9 @@ end
 local function Enabled(v) return v.unit == "target" or db.focus end
 
 function ns.Apply()
+  if not db.plates then
+    for token in pairs(plateTracks) do PlateRemoved(token) end
+  end
   local unlocked = not db.locked
   for _, v in ipairs(views) do
     local cfg = Cfg(v)
@@ -619,7 +707,7 @@ local function BuildAll()
   setBtn:SetPoint("TOPLEFT", main.hud, "BOTTOM", 2, -5)
   setBtn:SetScript("OnClick", function() if ns.ToggleOptions then ns.ToggleOptions(true) end end)
   ns.views, ns.hud, ns.cells = views, main.hud, main.cells
-  ns.targetSlots, ns.focusTrack = targetSlots, focusTrack
+  ns.targetSlots, ns.focusTrack, ns.plateTracks = targetSlots, focusTrack, plateTracks
 end
 
 ------------------------------------------------------------------------
@@ -740,6 +828,11 @@ local function ShowView(v, t, cfg)
 end
 
 local function Update()
+  -- the target frame follows the target's nameplate as it comes and goes
+  if db.onPlate and db.locked and views[1] then
+    local want = TargetPlateFrame() and true or false
+    if want ~= views[1].onPlate then Place(views[1]) end
+  end
   for _, v in ipairs(views) do
     local t = nil
     if db.locked and Enabled(v) and Hostile(v.unit) then t = TrackFor(v.unit) end
@@ -780,6 +873,10 @@ local function CheckLine(why)
   add("target", best)
   for _, t in ipairs(targetSlots) do t.maxHits, t.asked, t.failed = 0, 0, 0 end
   add("focus", focusTrack)
+  -- nameplates: how many enemies were followed, hits on them, did the game say which is the target
+  parts[#parts + 1] = string.format("plates[seen=%d hits=%d target y=%d n=%d ?=%d frame=%s]", plateStat.seen,
+    plateStat.hits, plateStat.yes, plateStat.no, plateStat.unknown, TargetPlateFrame() and "y" or "n")
+  for k in pairs(plateStat) do plateStat[k] = 0 end
   parts[#parts + 1] = string.format("same[y=%d n=%d ?=%d]", same.yes, same.no, same.unknown)
   same.yes, same.no, same.unknown = 0, 0, 0
   -- did the game say whether a unit was already fighting when its count began?
@@ -831,6 +928,13 @@ local function OnEvent(_, event, a1)
     ns.Apply()
     Listen("target", function() Hit(cur) end)
     Listen("focus", function() Hit(focusTrack) end)
+    -- hits on enemies with a nameplate
+    local pf = CreateFrame("Frame")
+    pf:SetScript("OnEvent", function(_, _, u, action)
+      if ready and db.plates and type(u) == "string" and u:find("^nameplate%d") and not IsSecret(action)
+          and action == "WOUND" then PlateHit(u) end
+    end)
+    pcall(pf.RegisterEvent, pf, "UNIT_COMBAT")
     if ns.InitOptions then ns.InitOptions() end
   elseif not ready then
     return
@@ -846,8 +950,16 @@ local function OnEvent(_, event, a1)
     TargetChanged()
   elseif event == "PLAYER_TARGET_CHANGED" then
     TargetChanged()
+    FindPlates()
+    if views[1] then Place(views[1]) end
+  elseif event == "NAME_PLATE_UNIT_ADDED" then
+    PlateAdded(a1)
+    FindPlates()
+  elseif event == "NAME_PLATE_UNIT_REMOVED" then
+    PlateRemoved(a1)
   elseif event == "PLAYER_FOCUS_CHANGED" then
     FocusChanged()
+    FindPlates()
   elseif event == "ENCOUNTER_START" then
     encounter = Plain(function() return a1 end) or 0
   elseif event == "ENCOUNTER_END" then
@@ -862,7 +974,8 @@ local function OnEvent(_, event, a1)
 end
 ev:SetScript("OnEvent", OnEvent)
 for _, e in ipairs({ "ADDON_LOADED", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_TARGET_CHANGED",
-                     "PLAYER_FOCUS_CHANGED", "ENCOUNTER_START", "ENCOUNTER_END", "PLAYER_ENTERING_WORLD" }) do
+                     "PLAYER_FOCUS_CHANGED", "ENCOUNTER_START", "ENCOUNTER_END", "PLAYER_ENTERING_WORLD",
+                     "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }) do
   pcall(ev.RegisterEvent, ev, e)
 end
 

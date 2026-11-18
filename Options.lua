@@ -365,9 +365,14 @@ Build = function()
   -- left: the target
   local h1 = Header(win, L.optTarget, COL - 2 * PAD)
   h1:SetPoint("TOPLEFT", win, "TOPLEFT", LX, top)
-  local intro = Label(win, L.noteTarget, "GameFontHighlightSmall")
-  intro:SetPoint("TOPLEFT", win, "TOPLEFT", LX + IN, introY - 6)
-  intro:SetWidth(COL - 2 * PAD - IN)
+  -- two switches, at the heights of the focus column's two
+  local onPlate = Check(win, L.optOnPlate, L.tipOnPlate, function() return db.onPlate end,
+    function(v) db.onPlate = v; ns.Apply() end)
+  onPlate:SetPoint("TOPLEFT", win, "TOPLEFT", LX + IN, introY)
+  local plates = Check(win, L.optPlates, L.tipPlates, function() return db.plates end,
+    function(v) db.plates = v; ns.Apply() end)
+  plates:SetPoint("TOPLEFT", win, "TOPLEFT", LX + IN, introY - 26)
+  control(onPlate, plates)
   local y, leftRows = Column(LX + IN, rowsY, function() return db end, nil, ns.Apply)
 
   -- right: the focus. Two switches, then the same rows: the target's values greyed out while
@@ -435,6 +440,7 @@ Build = function()
   control(lang, langTip, lock, reset)
   win:SetHeight(-(y - 22 - 16))
   win.widgets = { show = show, sameAs = sameAs, lang = lang, lock = lock, reset = reset,
+    onPlate = onPlate, plates = plates,
     leftRows = leftRows, rightRows = rightRows }
   ns.optionsWindow = win
 end

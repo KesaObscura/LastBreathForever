@@ -10,7 +10,7 @@
 ## Notes-koKR: 전투 중 대상이 대략 몇 초 뒤에 죽는지 보여 줍니다.
 ## Notes-zhCN: 在战斗中显示你的目标大约还能活几秒。
 ## Notes-zhTW: 在戰鬥中顯示你的目標大約還能活幾秒。
-## Version: 0.1.1
+## Version: 0.2.0
 ## IconTexture: Interface\AddOns\LastBreathForever\icon
 ## AddonCompartmentFunc: LastBreathForever_OnCompartmentClick
 ## AddonCompartmentFuncOnEnter: LastBreathForever_OnCompartmentEnter
