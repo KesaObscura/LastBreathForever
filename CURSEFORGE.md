@@ -2,7 +2,9 @@
 
 A small frame next to your target shows **"~12 s"** (longer times as "~2:30" or "~12 min"), live in combat, and the same seconds stand **above every enemy's nameplate**. Finish the long cast or switch targets, see which mob of a pull dies first, keep the potion, the trinket and the cooldown for the last seconds, and see when a boss is about to go down. Solo, in a group, in dungeons and on bosses. For every class: damage dealers, tanks and healers.
 
-![Time to die: about how many seconds your target has left, next to its frame](https://raw.githubusercontent.com/KesaObscura/LastBreathForever/main/docs/images/time-to-die-live-in-combat.png)
+![Time to die on every nameplate: which mob of a pull dies first](https://raw.githubusercontent.com/KesaObscura/LastBreathForever/main/docs/images/time-to-die-on-nameplates.png)
+
+*From the author of [Full Mana Forever](https://www.curseforge.com/wow/addons/full-mana-forever).*
 
 *Features asked for in the comments get built. Tell us what you need: comment here or open an issue on [GitHub](https://github.com/KesaObscura/LastBreathForever/issues).*
 
@@ -13,6 +15,9 @@ A small frame next to your target shows **"~12 s"** (longer times as "~2:30" or 
 - **Joined late?** A boss you take into your target at 50 %, the next mob of a pull: it gets its seconds too, a little later, once it has lost some more health.
 - **Time to die on nameplates:** small seconds above every enemy that is being hit, also above your target and your focus: see which mob of a pull goes down first and where to put the next cast. The same enemy shows the same number everywhere. Only for the last 30 s by default (up to 1:30), above the enemy's debuffs.
 - **Boss and adds at the same time:** every enemy with a nameplate is counted from its first hit, also while it is not your target. Switch from an add to the boss and back, and the seconds are there at once. Needs the enemy nameplates switched on.
+
+![Seconds above every enemy of a dungeon pull](https://raw.githubusercontent.com/KesaObscura/LastBreathForever/main/docs/images/every-enemy-of-the-pull.png)
+
 - **Last seconds in red**: from 5 s up to a minute before the end (10 s by default), for the cooldowns, trinkets and potions you keep for the finish.
 - **Longer fights read easily:** "~2:30" above 90 s, "~12 min" above 10 minutes.
 
@@ -33,7 +38,7 @@ Three columns, target, focus and nameplates (the focus frame and the nameplates 
 - **Language**: your game's language or any of the 9; the window opens where you left it.
 - Unlock the frames to drag them anywhere; a fight locks them again.
 
-![The settings window: target, focus and nameplates in three columns](https://raw.githubusercontent.com/KesaObscura/LastBreathForever/main/docs/images/settings-target-focus.png)
+![The settings window: target, focus and nameplates in three columns](https://raw.githubusercontent.com/KesaObscura/LastBreathForever/main/docs/images/settings-target-focus-nameplates.png)
 
 ## Commands
 

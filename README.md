@@ -13,11 +13,13 @@ finish the long cast, switch targets, see which mob of a pull dies first, or sav
 the cooldown for the last seconds. Solo, in a group, in dungeons and on bosses. Part of the
 Forever series with [Full Mana Forever](https://github.com/KesaObscura/FullManaForever).
 
-![Time to die: about how many seconds your target has left, next to its frame](docs/images/time-to-die-live-in-combat.png)
+![Time to die on every nameplate: which mob of a pull dies first](docs/images/time-to-die-on-nameplates.png)
 
-| The last seconds in red, the focus too | Settings for the target, the focus and the nameplates |
+| Every enemy of the pull | Time to die at your target |
 |---|---|
-| ![The last seconds in red; a second frame for the focus](docs/images/last-seconds-red-focus-frame.png) | ![The settings window: target and focus in two columns](docs/images/settings-target-focus.png) |
+| ![Seconds above every enemy of a dungeon pull](docs/images/every-enemy-of-the-pull.png) | ![About how many seconds your target has left, next to its frame](docs/images/time-to-die-live-in-combat.png) |
+| **The last seconds in red, the focus too** | **Settings: target, focus and nameplates** |
+| ![The last seconds in red; a second frame for the focus](docs/images/last-seconds-red-focus-frame.png) | ![The settings window: target, focus and nameplates in three columns](docs/images/settings-target-focus-nameplates.png) |
 
 ## Time to die: what it shows
 
