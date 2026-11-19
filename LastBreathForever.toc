@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: Last Breath Forever
-## Notes: Time to die: about how many seconds your target, your focus and every enemy on its nameplate has left, live in combat. See which mob of a pull dies first; the last seconds in red.
+## Notes: Time to die: about how many seconds your target, your focus and every enemy have left, live in combat, also above their nameplates. See which mob of a pull dies first; the last seconds in red.
 ## Notes-deDE: Time to die: wie viele Sekunden dein Ziel, dein Fokus und jeder Gegner über seiner Namensplakette ungefähr noch lebt, live im Kampf. Du siehst, welcher Gegner eines Pulls zuerst fällt; die letzten Sekunden in Rot.
 ## Notes-ruRU: Time to die: сколько примерно секунд осталось жить цели, фокусу и каждому врагу над его табличкой, прямо в бою. Видно, какой моб пулла умрёт первым; последние секунды красным.
 ## Notes-esES: Time to die: cuántos segundos le quedan más o menos a tu objetivo, a tu foco y a cada enemigo sobre su placa, en pleno combate. Ve qué enemigo cae primero; los últimos segundos en rojo.

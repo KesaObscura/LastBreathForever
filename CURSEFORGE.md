@@ -1,4 +1,4 @@
-**Time to die (TTD) for World of Warcraft: Forever (WoW Forever, Classic+): about how many seconds your target has left, and every enemy on its nameplate.**
+**Time to die (TTD) for World of Warcraft: Forever (WoW Forever, Classic+): about how many seconds your target and every enemy have left, also above their nameplates.**
 
 A small frame next to your target shows **"~12 s"** (longer times as "~2:30" or "~12 min"), live in combat, and the same seconds stand **above every enemy's nameplate**. Finish the long cast or switch targets, see which mob of a pull dies first, keep the potion, the trinket and the cooldown for the last seconds, and see when a boss is about to go down. Solo, in a group, in dungeons and on bosses. For every class: damage dealers, tanks and healers.
 
