@@ -299,7 +299,7 @@ Build = function()
   EscListed(win, "LastBreathForeverOptions")
   Skin.Window(win, 0, { portrait = Skin.LOGO })
 
-  local title = Label(win, "Last Breath Forever  |cff888888v" .. ns.VERSION .. "|r", "GameFontNormalLarge")
+  local title = Label(win, "Last Breath Forever  |cff888888v" .. ns.VERSION_TEXT .. "|r", "GameFontNormalLarge")
   Skin.PlaceTitle(title, win, PAD)
   local close = Skin.Close(win)
   if not close then

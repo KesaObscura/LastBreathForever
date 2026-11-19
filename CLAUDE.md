@@ -25,7 +25,7 @@ screen, commands) -> Options.lua (settings window). Settings: `LastBreathForever
   control has a tooltip, also while greyed out.
 - Run the tests after every change: `lua5.1 tests/run.lua` must end with `0 failed`.
 - After every change, hand the owner a test zip built from the committed state:
-  `git archive --format=zip --prefix=LastBreathForever/ -o LastBreathForever-<version>-<hash>.zip HEAD -- . ':!tests' ':!tools' ':!docs' ':!.gitignore' ':!.github' ':!.pkgmeta' ':!CURSEFORGE.md' ':!CLAUDE.md'`
+  `git archive --format=zip --prefix=LastBreathForever/ -o LastBreathForever-<version>-<hash>.zip HEAD -- . ':!tests' ':!tools' ':!docs' ':!.gitignore' ':!.github' ':!.pkgmeta' ':!.gitattributes' ':!CURSEFORGE.md' ':!CLAUDE.md'`
 - Keep in sync on every user-visible change: `CHANGELOG.md` (headings `**Last Breath Forever
   X.Y.Z**`), `README.md` (features, commands), the version in `LastBreathForever.toc` and
   `ns.VERSION` in `Core.lua` (a test checks both).

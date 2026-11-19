@@ -83,6 +83,8 @@ test("the version in the TOC is the version in the code", function()
   local ns = fresh()
   local toc = io.open(root .. "LastBreathForever.toc"):read("*a")
   assert(toc:match("## Version: ([%d%.]+)") == ns.VERSION)
+  -- a checkout has no build commit; a packaged build shows "0.2.0 (abc1234)"
+  assert(ns.BUILD == nil and ns.VERSION_TEXT == ns.VERSION)
 end)
 
 test("nothing shows before three hits and two seconds", function()

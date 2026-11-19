@@ -4,6 +4,9 @@
 
 local ADDON, ns = ...
 ns.VERSION = "0.2.0"
+-- the commit of a packaged build (filled in by git archive); nil in a checkout
+ns.BUILD = ("$Format:%h$"):match("^%x+$")
+ns.VERSION_TEXT = ns.VERSION .. (ns.BUILD and " (" .. ns.BUILD .. ")" or "")
 local L = ns.L
 local Skin = ns.Skin
 
@@ -1410,7 +1413,7 @@ SlashCmdList.LASTBREATHFOREVER = function(msg)
     ns.shotCount = 0
     Print("screenshots %s (every 10 s: bosses, 2+ nameplates with seconds; at most 60)", db.shots and "ON" or "off")
   elseif msg == "check" then
-    Print("v%s, %d lines:", ns.VERSION, #db.checks)
+    Print("v%s, %d lines:", ns.VERSION_TEXT, #db.checks)
     for i = math.max(1, #db.checks - 7), #db.checks do DEFAULT_CHAT_FRAME:AddMessage(db.checks[i]) end
     BugLink()
   elseif msg == "help" or msg == "?" then
@@ -1427,7 +1430,7 @@ end
 
 function LastBreathForever_OnCompartmentEnter(_, frame)
   GameTooltip:SetOwner(frame or UIParent, "ANCHOR_LEFT")
-  GameTooltip:AddDoubleLine("Last Breath Forever", "v" .. ns.VERSION, 0.84, 0.31, 0.94, 1, 0.82, 0)
+  GameTooltip:AddDoubleLine("Last Breath Forever", "v" .. ns.VERSION_TEXT, 0.84, 0.31, 0.94, 1, 0.82, 0)
   GameTooltip:AddDoubleLine(L.cmpLeft, L.cmpSettings, 1, 0.82, 0, 1, 1, 1)
   GameTooltip:Show()
 end
