@@ -8,6 +8,9 @@ do
   -- what a step may change (unlocking the frames is left out: it moves things under the mouse)
   local KEYS = { "scale", "icon", "limit", "urgent", "elite", "focus", "focusSame", "plates",
     "allPlates", "plateSame", "plateY", "language" }
+  -- settings no step changes, on purpose
+  local SKIP = { locked = true }
+  ns.SELFTEST_KEYS, ns.SELFTEST_SKIP = KEYS, SKIP
   local NIL = "__nil"
 
   local function Copy(t)
@@ -92,6 +95,8 @@ do
     end)
     return steps
   end
+
+  ns.SelfTestSteps = Steps
 
   local run -- the running test, or nil
 

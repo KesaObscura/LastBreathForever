@@ -1132,6 +1132,25 @@ test("/lbf selftest cut off by a reload: the settings come back at the next logi
   assert(ns.db.selftestBackup == nil and sameSettings(before, settingsOf(ns.db)))
 end)
 
+test("/lbf selftest covers every setting: a new setting needs its steps (or a reason to skip it)", function()
+  local ns = fresh()
+  local keys = {}
+  for _, k in ipairs(ns.SELFTEST_KEYS) do keys[k] = true end
+  for k in pairs(ns.DEFAULTS) do
+    assert(keys[k] or ns.SELFTEST_SKIP[k], "setting '" .. k .. "' is not in /lbf selftest: add steps for it")
+  end
+  for _, k in ipairs(ns.LOOK) do assert(keys[k], "look '" .. k .. "' is not in /lbf selftest") end
+  local names = {}
+  for _, st in ipairs(ns.SelfTestSteps()) do names[#names + 1] = st.name end
+  local all = table.concat(names, "\n")
+  for _, k in ipairs(ns.SELFTEST_KEYS) do
+    assert(all:find(k, 1, true), "no step changes '" .. k .. "'")
+  end
+  for _, prefix in ipairs({ "target.", "focus.", "plates." }) do
+    for _, k in ipairs(ns.LOOK) do assert(all:find(prefix .. k, 1, true), "no step for " .. prefix .. k) end
+  end
+end)
+
 for _, t in ipairs(tests) do
   local c0 = os.clock() local ok, err = pcall(t.fn) if os.getenv("TIMES") then io.write(string.format("%6.2f ", os.clock() - c0)) end
   if ok then io.write("ok   ", t.name, "\n") else failed = failed + 1 io.write("FAIL ", t.name, "\n     ", tostring(err), "\n") end

@@ -23,6 +23,10 @@ screen, commands) -> Options.lua (settings window) -> SelfTest.lua (`/lbf selfte
 - Other addons: ideas only, never code.
 - Every user-visible text in all 9 locale tables (esMX falls back to esES); every clickable
   control has a tooltip, also while greyed out.
+- **`/lbf selftest` grows with the addon** (owner, 19 Nov): every new or changed setting gets its
+  steps in `SelfTest.lua` (a flip, every choice of a list, the ends of a range, and a combination
+  where it is likely to break); a test fails for a setting in `DEFAULTS` or `LOOK` without steps.
+  Settings left out on purpose go into `SKIP` with the reason.
 - Run the tests after every change: `lua5.1 tests/run.lua` must end with `0 failed`.
 - After every change, hand the owner a test zip built from the committed state:
   `git archive --format=zip --prefix=LastBreathForever/ -o LastBreathForever-<version>-<hash>.zip HEAD -- . ':!tests' ':!tools' ':!docs' ':!.gitignore' ':!.github' ':!.pkgmeta' ':!.gitattributes' ':!CURSEFORGE.md' ':!CLAUDE.md'`
