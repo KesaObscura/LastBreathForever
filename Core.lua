@@ -256,6 +256,7 @@ local platePool = {}   -- free tracks
 local platesOf = {}    -- ["target"] / ["focus"] = the track of that unit's nameplate, or nil
 local plateStat = { seen = 0, hits = 0, yes = 0, no = 0, unknown = 0, shown = 0, kept = 0, reset = 0 } -- for /lbf check
 local cost = { n = 0, sum = 0, max = 0 } -- milliseconds per update, for /lbf check
+local errs = { n = 0 }                   -- errors in the update, for /lbf check
 local inCombat = false
 local encounter       -- the id of the running boss encounter, or nil
 
@@ -1087,6 +1088,7 @@ local function Prepare(j)
   if j.long then for i = 1, j.n do j.views[i].longAt = now end end
   t.asked = t.asked + 1
   if j.isTarget then stats.asked = stats.asked + 1 end
+  j.hit = t.hit -- the count this job is for; a count that ends or starts anew meanwhile is skipped
   return true
 end
 
@@ -1095,10 +1097,13 @@ local function Work(clock, t0)
   while qi <= nJobs do
     local j = jobs[qi]
     local t = j.t
-    -- only frames that still show this count (the target may have changed meanwhile)
+    -- only frames that still show this count (the target may have changed meanwhile), and only
+    -- while the count is the one the job was made for
     ncs = 0
-    for i = 1, j.n do
-      if j.views[i].track == t then ncs = ncs + 1 cs[ncs] = j.views[i] end
+    if t.hit and t.hit == j.hit and t.hits >= 2 then
+      for i = 1, j.n do
+        if j.views[i].track == t then ncs = ncs + 1 cs[ncs] = j.views[i] end
+      end
     end
     if ncs > 0 and qk == 0 then
       -- the first hit already took its share of health but no time: count one average gap
@@ -1235,6 +1240,10 @@ local function CheckLine(why)
     parts[#parts + 1] = string.format("ms[avg=%.2f max=%.2f n=%d]", cost.sum / cost.n, cost.max, cost.n)
   end
   cost.n, cost.sum, cost.max = 0, 0, 0
+  if errs.n > 0 then
+    parts[#parts + 1] = string.format("err[n=%d at=%s]", errs.n, errs.last or "?")
+    errs.n, errs.last = 0, nil
+  end
   for k in pairs(plateStat) do plateStat[k] = 0 end
   parts[#parts + 1] = string.format("same[y=%d n=%d ?=%d]", same.yes, same.no, same.unknown)
   same.yes, same.no, same.unknown = 0, 0, 0
@@ -1262,12 +1271,17 @@ ev:SetScript("OnUpdate", function(_, elapsed)
   local clock = type(debugprofilestop) == "function" and debugprofilestop or nil
   local t0 = clock and clock()
   -- an error in here hides the seconds: no number is better than a wrong one
-  local ok = true
+  local ok, err = true, nil
   if acc >= TICK then
     acc = 0
-    ok = pcall(Update)
+    ok, err = pcall(Update)
   end
-  if ok and qi <= nJobs then ok = pcall(Work, clock, t0) end
+  if ok and qi <= nJobs then ok, err = pcall(Work, clock, t0) end
+  if not ok then
+    -- for /lbf check: where it went wrong (file and line only)
+    errs.n = errs.n + 1
+    errs.last = tostring(err):match("([%w_]+%.lua:%d+)") or "?"
+  end
   if t0 and inCombat then
     local ms = clock() - t0
     if ms > 0.05 then

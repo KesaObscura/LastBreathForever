@@ -1016,6 +1016,41 @@ test("nameplates: 'Show from' only 30 s, 1 min or 1:30; old saved values are mov
   assert(lim, "the nameplates' own tooltip")
 end)
 
+test("a count that ends while its seconds are still being worked out: no warning, nothing wrong shown", function()
+  local ns = fresh({ db = { limit = 0, plateSame = true, focus = true }, cycle = true })
+  local ms = 0
+  debugprofilestop = function() return ms end
+  local real = UnitHealthPercent
+  UnitHealthPercent = function(...) ms = ms + 0.4 return real(...) end -- slow: a cycle takes many frames
+  local a, b = mob("a"), mob("b")
+  M.showPlate(1, a) M.showPlate(2, b)
+  M.target, M.hp = a, 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.focus = b M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  a.fighting, b.fighting = true, true
+  local function frame() M.now = M.now + 0.02 M.ev.scripts.OnUpdate(M.ev, 0.02) end
+  for _ = 1, 8 do
+    a.hp = a.hp - 0.04 M.hp = a.hp M.hit(a) b.hp = b.hp - 0.04 M.hit(b)
+    for _ = 1, 50 do frame() end
+  end
+  -- the fight ends in the middle of a cycle: every count is let go, the cycle must not trip on them
+  for _ = 1, 12 do frame() end
+  a.fighting, b.fighting = false, false
+  M.combat = false M.fire("PLAYER_REGEN_ENABLED")
+  for _ = 1, 60 do frame() end
+  -- and a new target in the middle of a cycle
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 6 do a.hp = a.hp - 0.04 M.hp = a.hp M.hit(a) for _ = 1, 50 do frame() end end
+  for _ = 1, 7 do frame() end
+  M.target = mob("c") M.hp = 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.plates[1] = nil M.fire("NAME_PLATE_UNIT_REMOVED", "nameplate1")
+  for _ = 1, 60 do frame() end
+  ns.CheckLine("x")
+  assert(not ns.db.checks[#ns.db.checks]:find("err%["), ns.db.checks[#ns.db.checks])
+  for _, line in ipairs(M.chat) do assert(not line:find(ns.L.warnBroken, 1, true), "warned: " .. line) end
+  UnitHealthPercent, debugprofilestop = real, nil
+end)
+
 for _, t in ipairs(tests) do
   local c0 = os.clock() local ok, err = pcall(t.fn) if os.getenv("TIMES") then io.write(string.format("%6.2f ", os.clock() - c0)) end
   if ok then io.write("ok   ", t.name, "\n") else failed = failed + 1 io.write("FAIL ", t.name, "\n     ", tostring(err), "\n") end
