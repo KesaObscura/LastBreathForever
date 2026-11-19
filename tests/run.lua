@@ -1005,21 +1005,6 @@ test("a big pull never stalls a frame: the work is spread over frames, a cycle e
   UnitHealthPercent, debugprofilestop = real, nil
 end)
 
-test("nameplates: the seconds stand above the enemy's name (the target's nameplate is drawn bigger)", function()
-  local ns = fresh()
-  local b = mob("x")
-  M.showPlate(1, b)
-  local f = M.plateFrames[1]
-  local name, bar = CreateFrame("Frame"), CreateFrame("Frame")
-  name:Show()
-  f.UnitFrame = { name = name, healthBar = bar }
-  M.hidePlate(1) M.showPlate(1, b)
-  ns.Apply()
-  assert(ns.plateViews.nameplate1.hud.point[2] == name, "above the name")
-  name:Hide() ns.Apply()
-  assert(ns.plateViews.nameplate1.hud.point[2] == bar, "no name shown: above the bar")
-end)
-
 test("nameplates: 'Show from' only 30 s, 1 min or 1:30; old saved values are moved into it", function()
   local ns = fresh({ db = { p = { limit = 0, scale = 0.7, icon = true, urgent = 30, elite = false } } })
   assert(ns.db.p.limit == 30, "Always is no choice for the nameplates")

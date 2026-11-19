@@ -33,8 +33,8 @@ Forever series with [Full Mana Forever](https://github.com/KesaObscura/FullManaF
   your target and its seconds are there at once. Bosses and adds alike, also in dungeons.
 - **Time to die on nameplates**: small seconds above every enemy that is being hit, also the
   target's and the focus's: see which mob of a pull goes down first. The same enemy shows the
-  same number everywhere. Only for the last 30 s by default (up to 1:30), right above the
-  enemy's name; size, height and the rest can be set.
+  same number everywhere. Only for the last 30 s by default (up to 1:30), above the
+  enemy's debuffs; size, height and the rest can be set.
 - **Last seconds in red**: from 5 s up to a minute before the end (10 s by default), for the
   cooldowns, trinkets and potions you keep for the finish.
 - **Focus frame** (optional): a second frame with the seconds of your focus, with the target

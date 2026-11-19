@@ -590,23 +590,6 @@ end
 ns.Cfg = Cfg
 
 
--- what the seconds stand on above a nameplate: its name (the target's nameplate is drawn
--- bigger, its frame reaches far above the bar), else its health bar, else the nameplate itself
-local function Field(t, k)
-  local ok, x = pcall(function() return t[k] end)
-  if ok and type(x) == "table" and not IsSecret(x) then return x end
-end
-local function PlateAnchor(plate)
-  local uf = Field(plate, "UnitFrame")
-  if uf then
-    local name = Field(uf, "name")
-    if name and Bool(name.IsShown, name) == true then return name end
-    local bar = Field(uf, "healthBar") or Field(uf, "HealthBarsContainer")
-    if bar then return bar end
-  end
-  return plate
-end
-
 local function Place(v)
   local hud = v.hud
   local scale = Cfg(v).scale
@@ -617,7 +600,7 @@ local function Place(v)
   -- always there); its own place while unlocked or without one
   local plate = v.plateView and PlateFrame(v.unit) or nil
   v.anchor = plate
-  if plate and pcall(hud.SetPoint, hud, "BOTTOM", PlateAnchor(plate), "TOP", 0, db.plateY / scale) then
+  if plate and pcall(hud.SetPoint, hud, "BOTTOM", plate, "TOP", 0, db.plateY / scale) then
     return
   end
   v.anchor = nil

@@ -3,7 +3,7 @@
 - **Follows enemies by their nameplates**, also while they are not your target: take one into your target and its seconds are there at once. Bosses and adds alike, also in dungeons when you switch between them. Needs the enemy nameplates switched on (on by default, can be switched off).
 - **Time to die on nameplates:** seconds above every enemy's nameplate, also the target's and the focus's: see which mob of a pull goes down first. Small and only for the last 30 s by default, with their own settings or the target's; the height above the nameplate can be set.
 - Enemies that are neither target nor focus show their seconds only while they are being hit, and nothing once they die.
-- The seconds stand right above the enemy's name, also above the bigger nameplate of your target. Above nameplates they show from 30 s, 1 min or 1:30.
+- Above nameplates the seconds show from 30 s, 1 min or 1:30, above the enemy's debuffs.
 - Smoother in big pulls with many enemies.
 - Target, focus and nameplate can be the same enemy: it then shows the same number everywhere, also when its nameplate goes out of view for a moment.
 - An enemy that resets (evades) while you fight on starts its seconds anew.
