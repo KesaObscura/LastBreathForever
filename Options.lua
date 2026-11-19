@@ -5,8 +5,8 @@ local L = ns.L
 local Skin = ns.Skin
 local GOLD, GREY = Skin.GOLD, Skin.GREY
 
-local COL, PAD, ROW = 370, 18, 30   -- two columns: target | focus
-local W = 2 * COL
+local COL, PAD, ROW = 370, 18, 30   -- three columns: target | focus | nameplates
+local W = 3 * COL
 local VALUE_X = 214 -- where the values of the steppers start, from the label's left edge
 local win
 local registry = {} -- everything with a Refresh (made anew with the window)
@@ -299,7 +299,7 @@ Build = function()
   EscListed(win, "LastBreathForeverOptions")
   Skin.Window(win, 0, { portrait = Skin.LOGO })
 
-  local title = Label(win, "Last Breath Forever  |cff888888v" .. ns.VERSION .. "|r", "GameFontNormalLarge")
+  local title = Label(win, "Last Breath Forever  |cff888888v" .. ns.VERSION_TEXT .. "|r", "GameFontNormalLarge")
   Skin.PlaceTitle(title, win, PAD)
   local close = Skin.Close(win)
   if not close then
@@ -322,7 +322,7 @@ Build = function()
 
   -- the five settings of one frame, the same rows in both columns. cfg() = the table they
   -- are read and written; enabledIf() false greys them out
-  local function Column(x, y, cfg, enabledIf, changed)
+  local function Column(x, y, cfg, enabledIf, changed, plates)
     local function at(widget, dy)
       widget:SetPoint("TOPLEFT", win, "TOPLEFT", x, y)
       y = y - (dy or ROW)
@@ -334,10 +334,15 @@ Build = function()
         next = function(v, dir) return math.max(0.5, math.min(3, math.floor((v + dir * 0.1) * 10 + 0.5) / 10)) end },
       enabledIf)
     at(size.label)
-    local limit = Stepper(win, L.optLimit, L.tipLimit,
+    -- above nameplates: only up to 1:30 (their own list; the target's when they follow it)
+    local limit = Stepper(win, L.optLimit, plates and L.tipPlateLimit or L.tipLimit,
       function() return cfg().limit end,
       function(v) cfg().limit = v end,
-      { fmt = function(v) return v == 0 and L.optAlways or string.format(L.fmtSecShort, v) end, next = InList(ns.LIMITS) },
+      { fmt = function(v) return v == 0 and L.optAlways or string.format(L.fmtSecShort, v) end,
+        next = function(v, dir)
+          local list = (plates and cfg() == db.p) and ns.PLATE_LIMITS or ns.LIMITS
+          return InList(list)(v, dir)
+        end },
       enabledIf)
     at(limit.label)
     local urgent = Stepper(win, L.optUrgent, L.tipUrgent,
@@ -358,9 +363,9 @@ Build = function()
     return y, list
   end
 
-  local LX, RX = PAD, COL + PAD
+  local LX, RX, PX = PAD, COL + PAD, 2 * COL + PAD
   local introY = top - 30
-  local rowsY = introY - 58
+  local rowsY = introY - 84
 
   -- left: the target
   local h1 = Header(win, L.optTarget, COL - 2 * PAD)
@@ -384,6 +389,34 @@ Build = function()
   local _, rightRows = Column(RX + IN, rowsY, function() return db.focusSame and db or db.f end,
     function() return db.focus and not db.focusSame end, ns.Apply)
 
+  -- third column: the nameplates. Seconds above every enemy's nameplate (also the target's and
+  -- the focus's: the same enemy shows the same number everywhere), following enemies by them
+  local h3 = Header(win, L.optPlatesHead, COL - 2 * PAD)
+  h3:SetPoint("TOPLEFT", win, "TOPLEFT", PX, top)
+  local plates = Check(win, L.optPlates, L.tipPlates, function() return db.plates end,
+    function(v) db.plates = v; ns.Apply() end)
+  plates:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY)
+  local allPlates = Check(win, L.optAllPlates, L.tipAllPlates, function() return db.allPlates end,
+    function(v) db.allPlates = v; ns.Apply() end, function() return db.plates end)
+  allPlates:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY - 26)
+  local plateSame = Check(win, L.optSame, L.tipSamePlates, function() return db.plateSame end,
+    function(v) db.plateSame = v; ns.Apply() end, function() return db.plates and db.allPlates end)
+  plateSame:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, introY - 52)
+  control(plates, allPlates, plateSame)
+  local py, plateRows = Column(PX + IN, rowsY, function() return db.plateSame and db or db.p end,
+    function() return db.plates and db.allPlates and not db.plateSame end, ns.Apply, true)
+  -- a sixth row only here: how high above the nameplate
+  local plateY = Stepper(win, L.optPlateY, L.tipPlateY,
+    function() return db.plateY end,
+    function(v) db.plateY = v; ns.Apply() end,
+    { fmt = function(v) return string.format("%+d", v) end,
+      next = function(v, dir) return math.max(-20, math.min(60, v + dir * 2)) end },
+    function() return db.plates and db.allPlates end)
+  plateY.label:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, py)
+  py = py - ROW
+  control(plateY.minus, plateY.plus, plateY.tipArea)
+  y = math.min(y, py)
+
   -- what the seconds are, across both columns
   y = y - 4
   local note = Label(win, L.optNote, "GameFontDisableSmall")
@@ -400,6 +433,11 @@ Build = function()
   sep:SetWidth(1)
   sep:SetPoint("TOP", win, "TOPLEFT", COL, top - 22)
   sep:SetPoint("BOTTOM", win, "TOPLEFT", COL, y + noteH + 16)
+  local sep2 = win:CreateTexture(nil, "ARTWORK")
+  sep2:SetColorTexture(Skin.EDGE[1], Skin.EDGE[2], Skin.EDGE[3], 0.6)
+  sep2:SetWidth(1)
+  sep2:SetPoint("TOP", win, "TOPLEFT", 2 * COL, top - 22)
+  sep2:SetPoint("BOTTOM", win, "TOPLEFT", 2 * COL, y + noteH + 16)
 
   -- footer across both columns: the language (left), placing the frames (right)
   local fline = win:CreateTexture(nil, "ARTWORK")
@@ -435,6 +473,7 @@ Build = function()
   control(lang, langTip, lock, reset)
   win:SetHeight(-(y - 22 - 16))
   win.widgets = { show = show, sameAs = sameAs, lang = lang, lock = lock, reset = reset,
+    plates = plates, allPlates = allPlates, plateSame = plateSame, plateRows = plateRows, plateY = plateY,
     leftRows = leftRows, rightRows = rightRows }
   ns.optionsWindow = win
 end

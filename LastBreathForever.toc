@@ -1,16 +1,16 @@
 ## Interface: 16001
 ## Title: Last Breath Forever
-## Notes: Time to die: shows about how many seconds your target has left, live in combat.
-## Notes-deDE: Zeigt, wie viele Sekunden dein Ziel ungefähr noch lebt, live im Kampf.
-## Notes-ruRU: Показывает, сколько примерно секунд осталось жить твоей цели, прямо в бою.
-## Notes-esES: Muestra cuántos segundos le quedan más o menos a tu objetivo, en pleno combate.
-## Notes-esMX: Muestra cuántos segundos le quedan más o menos a tu objetivo, en pleno combate.
-## Notes-frFR: Affiche combien de secondes il reste environ à ta cible, en plein combat.
-## Notes-ptBR: Mostra quantos segundos mais ou menos restam ao seu alvo, em pleno combate.
-## Notes-koKR: 전투 중 대상이 대략 몇 초 뒤에 죽는지 보여 줍니다.
-## Notes-zhCN: 在战斗中显示你的目标大约还能活几秒。
-## Notes-zhTW: 在戰鬥中顯示你的目標大約還能活幾秒。
-## Version: 0.1.1
+## Notes: Time to die: about how many seconds your target, your focus and every enemy have left, live in combat, also above their nameplates. See which mob of a pull dies first; the last seconds in red.
+## Notes-deDE: Time to die: wie viele Sekunden dein Ziel, dein Fokus und jeder Gegner über seiner Namensplakette ungefähr noch lebt, live im Kampf. Du siehst, welcher Gegner eines Pulls zuerst fällt; die letzten Sekunden in Rot.
+## Notes-ruRU: Time to die: сколько примерно секунд осталось жить цели, фокусу и каждому врагу над его табличкой, прямо в бою. Видно, какой моб пулла умрёт первым; последние секунды красным.
+## Notes-esES: Time to die: cuántos segundos le quedan más o menos a tu objetivo, a tu foco y a cada enemigo sobre su placa, en pleno combate. Ve qué enemigo cae primero; los últimos segundos en rojo.
+## Notes-esMX: Time to die: cuántos segundos le quedan más o menos a tu objetivo, a tu foco y a cada enemigo sobre su placa, en pleno combate. Ve qué enemigo cae primero; los últimos segundos en rojo.
+## Notes-frFR: Time to die : combien de secondes il reste environ à ta cible, à ton focus et à chaque ennemi au-dessus de sa barre de nom, en plein combat. Vois quel ennemi du pull tombe en premier ; les dernières secondes en rouge.
+## Notes-ptBR: Time to die: quantos segundos mais ou menos restam ao seu alvo, ao seu foco e a cada inimigo acima da placa dele, em pleno combate. Veja qual inimigo cai primeiro; os últimos segundos em vermelho.
+## Notes-koKR: Time to die: 전투 중 대상, 주시 대상, 이름표 위의 모든 적이 대략 몇 초 뒤에 죽는지 보여 줍니다. 어떤 적이 먼저 죽는지 보이고, 마지막 몇 초는 빨간색입니다.
+## Notes-zhCN: Time to die：在战斗中显示你的目标、焦点和每个敌人（在其姓名板上方）大约还能活几秒。看出哪个怪先死；最后几秒显示为红色。
+## Notes-zhTW: Time to die：在戰鬥中顯示你的目標、專注目標和每個敵人（在其姓名板上方）大約還能活幾秒。看出哪隻怪先死；最後幾秒顯示為紅色。
+## Version: 0.2.0
 ## IconTexture: Interface\AddOns\LastBreathForever\icon
 ## AddonCompartmentFunc: LastBreathForever_OnCompartmentClick
 ## AddonCompartmentFuncOnEnter: LastBreathForever_OnCompartmentEnter

@@ -7,16 +7,19 @@
 **Download:** [CurseForge](https://www.curseforge.com/wow/addons/last-breath-forever) (CurseForge app) · [latest release on GitHub](https://github.com/KesaObscura/LastBreathForever/releases/latest)
 
 An addon for **World of Warcraft: Forever** (WoW Forever, "Classic+", client 1.60.1): **time to
-die** for your target. See **about how many seconds your target has left** ("~12 s", longer
-times as "~2:30" or "~12 min"), live in combat: finish the long cast, switch targets, or save the
-potion and the cooldown for the last seconds. Solo, in a group, in dungeons and on bosses. Part
-of the Forever series with [Full Mana Forever](https://github.com/KesaObscura/FullManaForever).
+die (TTD)** for your target, your focus and every enemy on its nameplate. See **about how many
+seconds your target has left** ("~12 s", longer times as "~2:30" or "~12 min"), live in combat:
+finish the long cast, switch targets, see which mob of a pull dies first, or save the potion and
+the cooldown for the last seconds. Solo, in a group, in dungeons and on bosses. Part of the
+Forever series with [Full Mana Forever](https://github.com/KesaObscura/FullManaForever).
 
-![Time to die: about how many seconds your target has left, next to its frame](docs/images/time-to-die-live-in-combat.png)
+![Time to die on every nameplate: which mob of a pull dies first](docs/images/time-to-die-on-nameplates.png)
 
-| The last seconds in red, the focus too | Settings for the target and the focus |
+| Every enemy of the pull | Time to die at your target |
 |---|---|
-| ![The last seconds in red; a second frame for the focus](docs/images/last-seconds-red-focus-frame.png) | ![The settings window: target and focus in two columns](docs/images/settings-target-focus.png) |
+| ![Seconds above every enemy of a dungeon pull](docs/images/every-enemy-of-the-pull.png) | ![About how many seconds your target has left, next to its frame](docs/images/time-to-die-live-in-combat.png) |
+| **The last seconds in red, the focus too** | **Settings: target, focus and nameplates** |
+| ![The last seconds in red; a second frame for the focus](docs/images/last-seconds-red-focus-frame.png) | ![The settings window: target, focus and nameplates in three columns](docs/images/settings-target-focus-nameplates.png) |
 
 ## Time to die: what it shows
 
@@ -28,14 +31,19 @@ of the Forever series with [Full Mana Forever](https://github.com/KesaObscura/Fu
   too little. Meanwhile a dim icon shows that the addon is counting.
 - **Joined late?** A target that was already hurt gets its seconds too, a little later: once it
   has lost some more health.
-- **Back to the same target** in the open world: its seconds are there at once.
+- **Follows enemies by their nameplates**, also while they are not your target: take one into
+  your target and its seconds are there at once. Bosses and adds alike, also in dungeons.
+- **Time to die on nameplates**: small seconds above every enemy that is being hit, also the
+  target's and the focus's: see which mob of a pull goes down first. The same enemy shows the
+  same number everywhere. Only for the last 30 s by default (up to 1:30), above the
+  enemy's debuffs; size, height and the rest can be set.
 - **Last seconds in red**: from 5 s up to a minute before the end (10 s by default), for the
   cooldowns, trinkets and potions you keep for the finish.
 - **Focus frame** (optional): a second frame with the seconds of your focus, with the target
   frame's settings or its own. **Healers**: put the boss in your focus, and its seconds stay on
   screen while an ally is your target.
 - **Show from**: only once about 30 s, 1, 2, 5 or 10 minutes or less are left, or always.
-- **Only elites and bosses**, size, icon, position: settings in two columns, target and focus.
+- **Only elites and bosses**, size, icon, position: settings in three columns, target, focus and nameplates.
 - **9 languages**: English, Deutsch, Español (EU and AL), Français, Русский, 한국어, Português,
   简体中文, 繁體中文. The addon follows your game language, or choose one in the settings.
 

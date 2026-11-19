@@ -27,6 +27,8 @@ end
 M.now, M.hp, M.combat, M.chat = 100, 1, false, {}
 M.target = { exists = true, hostile = true, dead = false, guid = "mob-1", class = "normal", level = 20 }
 M.focus, M.bosses = nil, {}   -- other units: mob tables like M.target with their own hp
+M.plates = {}          -- [n] = the mob behind "nameplateN"
+M.noPlateHits = false  -- the game sends no hits for nameplate units
 M.secretGuid = false   -- dungeons: the game does not tell targets apart
 M.secretSame = false   -- UnitIsUnit keeps its answer to itself
 M.noUnitEvents = {}    -- [unit] = true: the game sends no hits for this unit
@@ -42,6 +44,8 @@ local function mob(unit)
   if unit == "focus" then return M.focus end
   local n = type(unit) == "string" and unit:match("^boss(%d)$")
   if n then return M.bosses[tonumber(n)] end
+  local p = type(unit) == "string" and unit:match("^nameplate(%d+)$")
+  if p then return M.plates[tonumber(p)] end
   if unit == "player" then return { player = true } end
 end
 M.mob = mob
@@ -99,7 +103,9 @@ M.noCombatInfo = false -- the game does not say whether a unit is fighting
 function UnitAffectingCombat(u)
   local m = mob(u)
   if M.noCombatInfo then return M.secret(true) end
-  return m ~= nil and m.fighting == true
+  if m == nil or m.evaded then return false end
+  -- a mob that was hit fights while the player fights
+  return m.fighting == true or (m.wasHit == true and M.combat == true)
 end
 M.group = 0
 function GetNumGroupMembers() return M.group end
@@ -216,10 +222,31 @@ end
 -- a hit on a mob (the target when none is given): the game tells every unit name it has
 function M.hit(m)
   m = m or M.target
+  if m then m.wasHit = true end
   local units = { "target", "focus" }
   for i = 1, 4 do units[#units + 1] = "boss" .. i end
+  for i = 1, 20 do units[#units + 1] = "nameplate" .. i end
   for _, u in ipairs(units) do
-    if mob(u) == m and not M.noUnitEvents[u] then M.fire("UNIT_COMBAT", u, "WOUND") end
+    local plate = u:find("^nameplate")
+    if mob(u) == m and not M.noUnitEvents[u] and not (plate and M.noPlateHits) then
+      M.fire("UNIT_COMBAT", u, "WOUND")
+    end
   end
 end
+-- a nameplate comes into view / goes away
+M.plateFrames = {}
+function M.showPlate(n, m)
+  M.plates[n] = m
+  M.plateFrames[n] = M.plateFrames[n] or CreateFrame("Frame")
+  M.fire("NAME_PLATE_UNIT_ADDED", "nameplate" .. n)
+end
+function M.hidePlate(n)
+  M.fire("NAME_PLATE_UNIT_REMOVED", "nameplate" .. n)
+  M.plates[n] = nil
+end
+C_NamePlate = { GetNamePlateForUnit = function(u)
+  local m = mob(u)
+  for n, x in pairs(M.plates) do if x == m then return M.plateFrames[n] end end
+end }
+
 return M

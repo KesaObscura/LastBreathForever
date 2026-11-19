@@ -5,3 +5,4 @@ ignore:
   - docs
   - CLAUDE.md
   - CURSEFORGE.md
+  - .gitattributes

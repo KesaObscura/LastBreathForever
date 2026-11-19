@@ -10,6 +10,7 @@ local function fresh(opts)
   M = dofile(dir .. "mock_wow.lua")
   if opts and opts.setup then opts.setup(M) end
   local ns = M.load(root)
+  if not (opts and opts.cycle) then ns.CYCLE = 0 end -- every update a full cycle (the game: 0.4 s)
   M.fire("ADDON_LOADED", "LastBreathForever")
   M.fire("PLAYER_ENTERING_WORLD")
   return ns
@@ -82,6 +83,8 @@ test("the version in the TOC is the version in the code", function()
   local ns = fresh()
   local toc = io.open(root .. "LastBreathForever.toc"):read("*a")
   assert(toc:match("## Version: ([%d%.]+)") == ns.VERSION)
+  -- a checkout has no build commit; a packaged build shows "0.2.0 (abc1234)"
+  assert(ns.BUILD == nil and ns.VERSION_TEXT == ns.VERSION)
 end)
 
 test("nothing shows before three hits and two seconds", function()
@@ -265,10 +268,10 @@ test("a client without the curve API: one warning, nothing shown, no error", fun
 end)
 
 test("broken saved settings are replaced by the defaults", function()
-  local ns = fresh({ db = { scale = "big", limit = 77, urgent = -1, icon = 5, point = "x", shots = true } })
+  local ns = fresh({ db = { scale = "big", limit = 77, urgent = -1, icon = 5, point = "x", shots = "yes" } })
   local d = ns.db
   assert(d.scale == 1 and d.limit == 300 and d.urgent == 10 and d.icon == true and d.point == nil)
-  assert(d.shots == nil, "the old test switch is dropped")
+  assert(d.shots == nil, "a broken test switch is dropped")
 end)
 
 test("unlocked: a sample shows, a fight locks the frame again", function()
@@ -303,7 +306,12 @@ test("settings: every control has a tooltip, also the greyed-out ones", function
   ns.ToggleOptions()
   local win = ns.optionsWindow
   assert(win and win:IsShown())
-  assert(#win.controls == 29, "controls: " .. #win.controls)
+  assert(#win.controls == 46, "controls: " .. #win.controls)
+  local py = win.widgets.plateY
+  py.plus.scripts.OnClick(py.plus)
+  assert(ns.db.plateY == 8, "height: steps of 2")
+  for _ = 1, 40 do py.plus.scripts.OnClick(py.plus) end
+  assert(ns.db.plateY == 60 and not py.plus:IsEnabled(), "height: up to 60")
   for i, c in ipairs(win.controls) do
     assert(c.scripts.OnEnter and c.tipTitle and c.tipText and c.tipText ~= "", "control " .. i .. " has no tooltip")
     c.scripts.OnEnter(c)
@@ -319,8 +327,10 @@ end)
 test("settings: steppers walk their lists and stop at the ends", function()
   local ns = fresh()
   ns.ToggleOptions()
-  local c = ns.optionsWindow.controls
-  -- 2/3 size, 5/6 limit, 8/9 urgent (minus, plus)
+  local rows = ns.optionsWindow.widgets.leftRows
+  -- 2/3 size, 5/6 limit, 8/9 urgent (minus, plus), counted from 2 as before
+  local c = { false }
+  for i, x in ipairs(rows) do c[i + 1] = x end
   for _ = 1, 10 do c[6].scripts.OnClick(c[6]) end
   assert(ns.db.limit == 600 and not c[6]:IsEnabled())
   for _ = 1, 10 do c[5].scripts.OnClick(c[5]) end
@@ -446,6 +456,22 @@ test("unlocked with the focus frame: two plates, each keeps its own place", func
   assert(not M.visible(v2.plate), "switched off: no second plate")
 end)
 
+test("test builds: /lbf shots takes screenshots in boss fights, every 10 s, then switches off", function()
+  local ns = fresh()
+  local n = 0
+  Screenshot = function() n = n + 1 end
+  SlashCmdList.LASTBREATHFOREVER("shots")
+  assert(ns.db.shots == true)
+  M.fire("ENCOUNTER_START", 592)
+  M.target, M.hp = boss(), 1 M.fire("PLAYER_TARGET_CHANGED")
+  fight(25, 0.01)
+  assert(n == 3, "25 s: three screenshots, got " .. n)
+  SlashCmdList.LASTBREATHFOREVER("shots")
+  M.tick(20, 0)
+  assert(n == 3 and ns.db.shots == nil, "off")
+  Screenshot = nil
+end)
+
 test("/lbf check: one line per fight, no names, no secrets", function()
   local ns = fresh()
   local b = boss()
@@ -461,6 +487,7 @@ test("/lbf check: one line per fight, no names, no secrets", function()
   assert(list[1]:find("boss enc=592", 1, true) and list[1]:find("target[hits=8", 1, true), list[1])
   assert(list[1]:find("fighting%[y=%d+ n=%d+ %?=0%]"), list[1])
   assert(list[1]:find("same%[y=%d+ n=0 %?=0%]"), list[1])
+  assert(list[1]:find("plates%[.* shown=%d+ kept=%d+ reset=%d+%]"), list[1])
   for _, l in ipairs(list) do assert(type(l) == "string" and not issecretvalue(l) and not l:find("boss\"")) end
   SlashCmdList.LASTBREATHFOREVER("check")
   assert(#M.chat == 4, "title, two lines, the bug link")
@@ -676,8 +703,358 @@ test("'Show from' 1 min: never minutes", function()
   assert(text(ns) == nil, "6 min left, shown from 1 min: nothing")
 end)
 
+-- a mob of a dungeon pull (the game hides who is who there)
+local function mob(guid) return { exists = true, hostile = true, guid = guid, class = "elite", level = 30, hp = 1 } end
+
+test("nameplates: the boss is counted while an add is the target; its seconds at once", function()
+  local ns = fresh({ db = { limit = 0 }, setup = function(m) m.secretGuid = true m.group = 5 end })
+  local b, add = mob("boss"), mob("add")
+  M.showPlate(1, b) M.showPlate(2, add)
+  M.target, M.hp = add, 1
+  M.fire("PLAYER_TARGET_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 20 do b.hp = b.hp - 0.02 M.hit(b) add.hp = add.hp - 0.04 M.hp = add.hp M.hit(add) M.tick(1, 0) end
+  -- boss 60 % after 20 s: about 30 s left; take it into the target
+  M.target, M.hp = b, b.hp
+  M.fire("PLAYER_TARGET_CHANGED")
+  M.tick(0.2, 0)
+  assert(shown(ns), "the boss's seconds at once, from its nameplate's count")
+  near(seconds(ns), 30, 4, "boss")
+  -- and back to the add (20 % left): its seconds at once too, also in a dungeon
+  M.target, M.hp = add, add.hp
+  M.fire("PLAYER_TARGET_CHANGED")
+  M.tick(0.2, 0)
+  near(seconds(ns), 5, 2, "add")
+end)
+
+test("target, focus and nameplate are one mob: one count, the same seconds in both frames", function()
+  local ns = fresh({ db = { limit = 0, focus = true, onPlate = false }, setup = function(m) m.secretGuid = true end })
+  local b = mob("boss")
+  M.showPlate(1, b)
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 10 do b.hp = b.hp - 0.03 M.hit(b) M.tick(1, 0) end   -- counted by its nameplate only
+  M.focus = b M.fire("PLAYER_FOCUS_CHANGED")
+  M.target, M.hp = b, b.hp M.fire("PLAYER_TARGET_CHANGED")
+  for _ = 1, 3 do b.hp = b.hp - 0.03 M.hp = b.hp M.hit(b) M.tick(1, 0) end
+  M.tick(0.2, 0)
+  local a, f = seconds(ns), focusSeconds(ns)
+  assert(a and f and a == f, "both frames the same: " .. tostring(a) .. " / " .. tostring(f))
+  near(a, 61 / 3, 3, "from the nameplate's count of 13 s, not the 3 s of the target and focus")
+  assert(ns.views[1].track == ns.views[2].track and ns.views[1].track == ns.plateTracks.nameplate1,
+    "one track for both frames")
+end)
+
+test("nameplates off, or no hits for them: the target and focus work as before", function()
+  local ns = fresh({ db = { limit = 0, plates = false } })
+  local b = mob("boss") M.showPlate(1, b)
+  M.target, M.hp = b, 1 M.fire("PLAYER_TARGET_CHANGED")
+  fight(8, 0.05)
+  M.now = M.now - 1 M.tick(0.2, 0)
+  near(seconds(ns), 12, 1, "plates off")
+  assert(next(ns.plateTracks) == nil)
+  local ns2 = fresh({ db = { limit = 0 }, setup = function(m) m.noPlateHits = true end })
+  local b2 = mob("boss2") M.showPlate(1, b2)
+  M.target, M.hp = b2, 1 M.fire("PLAYER_TARGET_CHANGED")
+  fight(8, 0.05)
+  M.now = M.now - 1 M.tick(0.2, 0)
+  near(seconds(ns2), 12, 1, "no hits for plates")
+end)
+
+test("a nameplate that goes away forgets its count; a fight's end forgets them all", function()
+  local ns = fresh({ db = { limit = 0 } })
+  local b = mob("x") M.showPlate(1, b)
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 5 do b.hp = b.hp - 0.05 M.hit(b) M.tick(1, 0) end
+  assert(ns.plateTracks.nameplate1.hits == 5)
+  M.hidePlate(1)
+  assert(ns.plateTracks.nameplate1 == nil)
+  M.showPlate(1, b)
+  assert(ns.plateTracks.nameplate1.hits == 0, "seen again: a new count")
+  M.hit(b)
+  M.combat = false M.fire("PLAYER_REGEN_ENABLED")
+  assert(ns.plateTracks.nameplate1.hits == 0)
+end)
+
+test("/lbf check counts the nameplates", function()
+  local ns = fresh()
+  local b = mob("x") M.showPlate(1, b)
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  M.hit(b) M.hit(b)
+  M.target, M.hp = b, 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.combat = false M.fire("PLAYER_REGEN_ENABLED")
+  local l = ns.db.checks[#ns.db.checks]
+  assert(l:find("plates%[seen=1 hits=2 target y=1"), l)
+end)
+
+test("a nameplate seen later than the target's own count does not replace it", function()
+  local ns = fresh({ db = { limit = 0 } })
+  local b = mob("x")
+  M.target, M.hp = b, 1 M.fire("PLAYER_TARGET_CHANGED")
+  fight(8, 0.05)                                  -- the target's own count: 8 s
+  b.hp = M.hp
+  M.showPlate(1, b)                               -- its nameplate comes into view only now
+  b.hp = b.hp - 0.05 M.hp = b.hp M.hit(b)
+  M.tick(0.2, 0)
+  assert(shown(ns), "the longer count stays")
+  near(seconds(ns), 11, 2, "from the target's own count")
+end)
+
+local function plateText(ns, token)
+  local v = ns.plateViews[token]
+  if not v then return nil end
+  for _, c in ipairs(v.cells) do
+    local fs = anyText(c)
+    if fs then return M.reveal(fs:GetText()) end
+  end
+end
+
+test("target, focus and nameplates all on: seconds everywhere, the same mob shows the same number", function()
+  local ns = fresh({ db = { limit = 0, focus = true, plateSame = true }, setup = function(m) m.secretGuid = true m.group = 5 end })
+  local b, a1, a2 = mob("boss"), mob("add1"), mob("add2")
+  M.showPlate(1, b) M.showPlate(2, a1) M.showPlate(3, a2)
+  M.target, M.hp = a1, 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.focus = b M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 12 do
+    b.hp = b.hp - 0.02 M.hit(b)
+    a1.hp = a1.hp - 0.04 M.hp = a1.hp M.hit(a1)
+    a2.hp = a2.hp - 0.05 M.hit(a2)
+    M.tick(1, 0)
+  end
+  M.tick(0.4, 0)
+  local function num(t) return t and tonumber(t:match("%d+")) end
+  local tgt, foc = seconds(ns), focusSeconds(ns)
+  local p1, p2, p3 = num(plateText(ns, "nameplate1")), num(plateText(ns, "nameplate2")), num(plateText(ns, "nameplate3"))
+  assert(tgt and foc and p1 and p2 and p3, "all five numbers on screen: " .. table.concat({ tostring(tgt), tostring(foc), tostring(p1), tostring(p2), tostring(p3) }, " "))
+  assert(p2 == tgt, "the target's nameplate shows the target's number: " .. p2 .. " / " .. tgt)
+  assert(p1 == foc, "the focus's nameplate shows the focus's number: " .. p1 .. " / " .. foc)
+  assert(ns.plateViews.nameplate2.track == ns.views[1].track, "one count for the target")
+  assert(ns.plateViews.nameplate1.track == ns.views[2].track, "one count for the focus")
+  -- the focus becomes the target too: three places, one number
+  M.target, M.hp = b, b.hp M.fire("PLAYER_TARGET_CHANGED")
+  M.tick(0.4, 0)
+  assert(seconds(ns) == focusSeconds(ns) and seconds(ns) == num(plateText(ns, "nameplate1")))
+  assert(ns.views[1].track == ns.views[2].track and ns.views[2].track == ns.plateViews.nameplate1.track)
+  -- switched off
+  ns.db.allPlates = false ns.Apply() M.tick(0.4, 0)
+  assert(not plateText(ns, "nameplate2") and not plateText(ns, "nameplate3"))
+end)
+
+test("a hit seen at the same moment by target, focus and nameplate: every frame picks the same count", function()
+  local ns = fresh({ db = { limit = 0, focus = true }, setup = function(m) m.secretGuid = true end })
+  local b = mob("boss")
+  M.showPlate(1, b)
+  M.target, M.hp = b, 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.focus = b M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 8 do b.hp = b.hp - 0.05 M.hp = b.hp M.hit(b) M.tick(1, 0) end
+  M.tick(0.4, 0)
+  local t1, t2, t3 = ns.views[1].track, ns.views[2].track, ns.plateViews.nameplate1.track
+  assert(t1 == t2 and t2 == t3, "one track")
+end)
+
+test("nameplates with their own settings", function()
+  local ns = fresh({ db = { limit = 0 } })
+  assert(ns.db.plateSame == false and ns.db.p.scale == 0.6 and ns.db.p.limit == 30 and ns.db.p.urgent == 5
+    and ns.db.p.icon == false, "own settings by default: small, no icon, from 30 s, red from 5 s")
+  local b = mob("x") M.showPlate(1, b)
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 6 do b.hp = b.hp - 0.012 M.hit(b) M.tick(1, 0) end
+  M.tick(0.4, 0)
+  assert(not plateText(ns, "nameplate1"), "own rule 30 s: hidden at about 80 s")
+  assert(ns.plateViews.nameplate1.cells[1].frame:GetScale() == 0.6)
+  ns.db.plateSame = true ns.Apply()
+  b.hp = b.hp - 0.03 M.hit(b) M.tick(0.4, 0)               -- about 65 s left
+  assert(plateText(ns, "nameplate1"), "the target's rule (always): shown")
+end)
+
+test("settings: the nameplates column greys out while it follows the target or is off", function()
+  local ns = fresh()
+  ns.ToggleOptions()
+  local w = ns.optionsWindow.widgets
+  local function anyEnabled()
+    for _, x in ipairs(w.plateRows) do
+      if (x.kind == "Button" or x.kind == "CheckButton") and x:IsEnabled() then return true end
+    end
+  end
+  assert(w.allPlates:IsEnabled() and anyEnabled(), "own settings by default: rows usable")
+  w.plateSame.checked = true w.plateSame.scripts.OnClick(w.plateSame)
+  assert(not anyEnabled(), "same as the target: rows greyed")
+  w.plates.checked = false w.plates.scripts.OnClick(w.plates)
+  assert(not w.allPlates:IsEnabled() and not w.plateSame:IsEnabled() and not anyEnabled(), "not following: all greyed")
+end)
+
+test("the game keeps 'same unit' to itself: target and its nameplate still show one number", function()
+  local ns = fresh({ db = { limit = 0, plateSame = true }, setup = function(m) m.secretGuid = true m.secretSame = true end })
+  local b, x = mob("boss"), mob("other")
+  M.showPlate(1, x) M.showPlate(2, b)
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 4 do b.hp = b.hp - 0.03 M.hit(b) M.tick(1, 0) end   -- counted by its nameplate first
+  M.target, M.hp = b, b.hp M.fire("PLAYER_TARGET_CHANGED")
+  for _ = 1, 4 do b.hp = b.hp - 0.03 M.hp = b.hp M.hit(b) M.tick(1, 0) end
+  M.tick(0.4, 0)
+  local function num(t) return t and tonumber(t:match("%d+")) end
+  assert(ns.views[1].track == ns.plateViews.nameplate2.track, "one count")
+  assert(seconds(ns) and seconds(ns) == num(plateText(ns, "nameplate2")), "the same number")
+end)
+
+test("the target's nameplate goes away and comes back: its count goes on, no jump", function()
+  local ns = fresh({ db = { limit = 0 }, setup = function(m) m.secretGuid = true end })
+  local b = mob("boss")
+  M.showPlate(1, b)
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 6 do b.hp = b.hp - 0.02 M.hit(b) M.tick(1, 0) end     -- its nameplate counts first
+  M.target, M.hp = b, b.hp M.fire("PLAYER_TARGET_CHANGED")
+  for _ = 1, 4 do b.hp = b.hp - 0.02 M.hp = b.hp M.hit(b) M.tick(1, 0) end
+  M.tick(0.2, 0)
+  local before = seconds(ns)
+  local kept = ns.views[1].track
+  M.hidePlate(1)                                                   -- the camera turned away
+  for _ = 1, 3 do b.hp = b.hp - 0.02 M.hp = b.hp M.hit(b) M.tick(1, 0) end
+  M.tick(0.2, 0)
+  assert(ns.views[1].track == kept, "the same count without the nameplate")
+  near(seconds(ns), before - 3, 3, "no jump")
+  M.showPlate(1, b)
+  b.hp = b.hp - 0.02 M.hp = b.hp M.hit(b) M.tick(0.4, 0)
+  assert(ns.views[1].track == kept and ns.plateViews.nameplate1.track == kept, "the nameplate takes the kept count")
+  -- a new target: the kept count is let go
+  M.target = mob("new") M.hp = 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.tick(0.2, 0)
+end)
+
+test("an enemy that resets (evade) starts its count anew", function()
+  local ns = fresh({ db = { limit = 0 } })
+  fight(8, 0.03)
+  assert(shown(ns))
+  M.target.evaded = true M.hp = 1
+  M.tick(4, 0)                                                     -- no hits, out of combat
+  assert(not shown(ns), "nothing after the reset")
+  M.target.evaded = nil
+  for _ = 1, 2 do M.hp = M.hp - 0.03 M.hit() M.tick(1, 0) end
+  assert(not shown(ns), "a new count waits again")
+end)
+
+test("group: other enemies need 8 % lost before a number", function()
+  local ns = fresh({ db = { limit = 0 }, setup = function(m) m.group = 5 end })
+  M.target = mob("trash") M.target.class = "normal" M.hp = 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 6 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end     -- 94 %
+  assert(not shown(ns), "6 % lost: not yet")
+  for _ = 1, 4 do M.hp = M.hp - 0.01 M.hit() M.tick(1, 0) end     -- 90 %
+  assert(shown(ns), "10 % lost: shown")
+end)
+
+test("nameplates: frames are reused, never more than 20; dead and idle enemies show nothing", function()
+  local ns = fresh({ db = { limit = 0, plateSame = true } })
+  assert(ns.PlateViewsBuilt() == 8, "a few made before the fight")
+  local ms = {}
+  for i = 1, 20 do ms[i] = mob("m" .. i) M.showPlate(i, ms[i]) end
+  for _ = 1, 3 do
+    for i = 1, 20 do M.hidePlate(i) end
+    for i = 1, 20 do M.showPlate(i, ms[i]) end
+  end
+  assert(ns.PlateViewsBuilt() == 20, "reused: " .. ns.PlateViewsBuilt())
+  for i = 21, 25 do M.showPlate(i, mob("m" .. i)) end
+  assert(ns.PlateViewsBuilt() == 20 and not ns.plateViews.nameplate21, "never more than 20")
+  local a, d = ms[1], ms[2]
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 8 do
+    a.hp = a.hp - 0.03 M.hit(a) d.hp = d.hp - 0.03 M.hit(d) M.tick(1, 0)
+  end
+  M.tick(2, 0)
+  assert(plateText(ns, "nameplate1") and plateText(ns, "nameplate2"), "both shown")
+  d.dead = true M.tick(0.2, 0)
+  assert(not plateText(ns, "nameplate2"), "dead: hidden at once")
+  M.tick(4, 0)
+  assert(not plateText(ns, "nameplate1"), "no hit for a while: hidden")
+end)
+
+test("nameplates: the seconds stand at the chosen height above the nameplate", function()
+  local ns = fresh({ db = { plateY = 20 } })
+  M.showPlate(1, mob("x"))
+  local v = ns.plateViews.nameplate1
+  ns.Apply()
+  local p = v.hud.point
+  assert(p and p[1] == "BOTTOM" and p[3] == "TOP" and math.abs(p[5] * ns.db.p.scale - 20) < 1e-6, "20 above")
+end)
+
+test("a big pull never stalls a frame: the work is spread over frames, a cycle every 0.4 s", function()
+  local ns = fresh({ db = { limit = 0, plateSame = true }, cycle = true })
+  local ms = 0
+  debugprofilestop = function() return ms end
+  local real = UnitHealthPercent
+  UnitHealthPercent = function(...) ms = ms + 0.05 return real(...) end -- each answer costs time
+  local ms_ = {}
+  for i = 1, 8 do ms_[i] = mob("m" .. i) M.showPlate(i, ms_[i]) end
+  M.target, M.hp = ms_[1], 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _, m in ipairs(ms_) do m.fighting = true end
+  local worst, frames = 0, 0
+  local function frame()
+    M.now = M.now + 0.02
+    local before = ms
+    M.ev.scripts.OnUpdate(M.ev, 0.02)
+    if ms - before > worst then worst = ms - before end
+    frames = frames + 1
+  end
+  for _ = 1, 10 do
+    for _, m in ipairs(ms_) do m.hp = m.hp - 0.03 M.hit(m) end
+    M.hp = ms_[1].hp
+    for _ = 1, 50 do frame() end
+  end
+  assert(worst < 3, "the most one frame took: " .. worst)
+  assert(shown(ns), "the target's seconds show")
+  UnitHealthPercent, debugprofilestop = real, nil
+end)
+
+test("nameplates: 'Show from' only 30 s, 1 min or 1:30; old saved values are moved into it", function()
+  local ns = fresh({ db = { p = { limit = 0, scale = 0.7, icon = true, urgent = 30, elite = false } } })
+  assert(ns.db.p.limit == 30, "Always is no choice for the nameplates")
+  ns.ToggleOptions()
+  local lim
+  for _, x in ipairs(ns.optionsWindow.widgets.plateRows) do
+    if x.tipText == ns.L.tipPlateLimit and x.kind == "Button" and not lim then lim = x end
+  end
+  assert(lim, "the nameplates' own tooltip")
+end)
+
+test("a count that ends while its seconds are still being worked out: no warning, nothing wrong shown", function()
+  local ns = fresh({ db = { limit = 0, plateSame = true, focus = true }, cycle = true })
+  local ms = 0
+  debugprofilestop = function() return ms end
+  local real = UnitHealthPercent
+  UnitHealthPercent = function(...) ms = ms + 0.4 return real(...) end -- slow: a cycle takes many frames
+  local a, b = mob("a"), mob("b")
+  M.showPlate(1, a) M.showPlate(2, b)
+  M.target, M.hp = a, 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.focus = b M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  a.fighting, b.fighting = true, true
+  local function frame() M.now = M.now + 0.02 M.ev.scripts.OnUpdate(M.ev, 0.02) end
+  for _ = 1, 8 do
+    a.hp = a.hp - 0.04 M.hp = a.hp M.hit(a) b.hp = b.hp - 0.04 M.hit(b)
+    for _ = 1, 50 do frame() end
+  end
+  -- the fight ends in the middle of a cycle: every count is let go, the cycle must not trip on them
+  for _ = 1, 12 do frame() end
+  a.fighting, b.fighting = false, false
+  M.combat = false M.fire("PLAYER_REGEN_ENABLED")
+  for _ = 1, 60 do frame() end
+  -- and a new target in the middle of a cycle
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  for _ = 1, 6 do a.hp = a.hp - 0.04 M.hp = a.hp M.hit(a) for _ = 1, 50 do frame() end end
+  for _ = 1, 7 do frame() end
+  M.target = mob("c") M.hp = 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.plates[1] = nil M.fire("NAME_PLATE_UNIT_REMOVED", "nameplate1")
+  for _ = 1, 60 do frame() end
+  ns.CheckLine("x")
+  assert(not ns.db.checks[#ns.db.checks]:find("err%["), ns.db.checks[#ns.db.checks])
+  for _, line in ipairs(M.chat) do assert(not line:find(ns.L.warnBroken, 1, true), "warned: " .. line) end
+  UnitHealthPercent, debugprofilestop = real, nil
+end)
+
 for _, t in ipairs(tests) do
-  local ok, err = pcall(t.fn)
+  local c0 = os.clock() local ok, err = pcall(t.fn) if os.getenv("TIMES") then io.write(string.format("%6.2f ", os.clock() - c0)) end
   if ok then io.write("ok   ", t.name, "\n") else failed = failed + 1 io.write("FAIL ", t.name, "\n     ", tostring(err), "\n") end
 end
 io.write(string.format("\n%d tests, %d failed\n", #tests, failed))
