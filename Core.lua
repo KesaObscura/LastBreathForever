@@ -3,7 +3,7 @@
 -- The game works the seconds out itself and hands back a value that can only be shown.
 
 local ADDON, ns = ...
-ns.VERSION = "0.2.0"
+ns.VERSION = "0.2.1"
 -- the commit of a packaged build (filled in by git archive); nil in a checkout
 ns.BUILD = ("$Format:%h$"):match("^%x+$")
 ns.VERSION_TEXT = ns.VERSION .. (ns.BUILD and " (" .. ns.BUILD .. ")" or "")
@@ -87,9 +87,12 @@ end
 local BUG_URL = "https://github.com/KesaObscura/LastBreathForever/issues"
 ns.BUG_URL = BUG_URL
 local function BugLink() Print(L.bugReport, BUG_URL) end
+ns.Print, ns.BugLink = Print, BugLink
 
 local warned
-local function Broken()
+local function Broken(why)
+  -- during /lbf selftest the trouble goes into its list instead of the chat
+  if ns.selfTestNote then ns.selfTestNote(why or "the game did not answer as expected") return end
   if not warned then
     warned = true
     Print("%s", L.warnBroken)
@@ -1281,6 +1284,7 @@ ev:SetScript("OnUpdate", function(_, elapsed)
   end
   if ok and qi <= nJobs then ok, err = pcall(Work, clock, t0) end
   if not ok then
+    if ns.selfTestNote then ns.selfTestNote(tostring(err)) end
     -- for /lbf check: where it went wrong (file and line only)
     errs.n = errs.n + 1
     errs.last = tostring(err):match("([%w_]+%.lua:%d+)") or "?"
@@ -1304,7 +1308,7 @@ ev:SetScript("OnUpdate", function(_, elapsed)
   if not ok then
     for _, v in ipairs(views) do HideCells(v) end
     for _, v in pairs(plateViews) do HideCells(v) end
-    Broken()
+    Broken(tostring(err))
   end
 end)
 
@@ -1412,12 +1416,14 @@ SlashCmdList.LASTBREATHFOREVER = function(msg)
     db.shots = not db.shots or nil
     ns.shotCount = 0
     Print("screenshots %s (every 10 s: bosses, 2+ nameplates with seconds; at most 60)", db.shots and "ON" or "off")
+  elseif msg == "selftest" or msg == "selftest stop" then
+    if ns.SelfTest then ns.SelfTest(msg == "selftest stop") end
   elseif msg == "check" then
     Print("v%s, %d lines:", ns.VERSION_TEXT, #db.checks)
     for i = math.max(1, #db.checks - 7), #db.checks do DEFAULT_CHAT_FRAME:AddMessage(db.checks[i]) end
     BugLink()
   elseif msg == "help" or msg == "?" then
-    for _, k in ipairs({ "help1", "help2", "help3", "help4", "help5" }) do Print("%s", L[k]) end
+    for _, k in ipairs({ "help1", "help2", "help3", "help4", "help5", "help6" }) do Print("%s", L[k]) end
     BugLink()
   elseif ns.ToggleOptions then
     ns.ToggleOptions()

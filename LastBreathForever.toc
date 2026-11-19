@@ -10,7 +10,7 @@
 ## Notes-koKR: Time to die: 전투 중 대상, 주시 대상, 이름표 위의 모든 적이 대략 몇 초 뒤에 죽는지 보여 줍니다. 어떤 적이 먼저 죽는지 보이고, 마지막 몇 초는 빨간색입니다.
 ## Notes-zhCN: Time to die：在战斗中显示你的目标、焦点和每个敌人（在其姓名板上方）大约还能活几秒。看出哪个怪先死；最后几秒显示为红色。
 ## Notes-zhTW: Time to die：在戰鬥中顯示你的目標、專注目標和每個敵人（在其姓名板上方）大約還能活幾秒。看出哪隻怪先死；最後幾秒顯示為紅色。
-## Version: 0.2.0
+## Version: 0.2.1
 ## IconTexture: Interface\AddOns\LastBreathForever\icon
 ## AddonCompartmentFunc: LastBreathForever_OnCompartmentClick
 ## AddonCompartmentFuncOnEnter: LastBreathForever_OnCompartmentEnter
@@ -25,3 +25,4 @@ Locale.lua
 Skin.lua
 Core.lua
 Options.lua
+SelfTest.lua

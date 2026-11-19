@@ -48,6 +48,7 @@ Three columns, target, focus and nameplates (the focus frame and the nameplates 
 | `/lbf unlock` / `/lbf lock` | move the frames / lock them |
 | `/lbf reset` | put the frames back in the middle of the screen |
 | `/lbf check` | what the game answered in the last fights, for bug reports |
+| `/lbf selftest` | tries every setting for about 40 seconds and lists any error with the setting it came from; your settings come back (`/lbf selftest stop` ends it) |
 | `/lbf help` | list the commands |
 
 ## FAQ
@@ -73,7 +74,7 @@ Three columns, target, focus and nameplates (the focus frame and the nameplates 
 
 ## Bug reports
 
-Please include the lines of `/lbf check` (they are also kept in `WTF\Account\ACCOUNTNAME\SavedVariables\LastBreathForever.lua`; no names), your class and level, and what you expected. Lua errors are easiest to read with BugGrabber + BugSack.
+Please include the lines of `/lbf check` (they are also kept in `WTF\Account\ACCOUNTNAME\SavedVariables\LastBreathForever.lua`; no names), your class and level, and what you expected. Something broke after you changed a setting? `/lbf selftest` lists the setting it came from. Lua errors are easiest to read with BugGrabber + BugSack.
 
 Source code and issues: [GitHub](https://github.com/KesaObscura/LastBreathForever).
 

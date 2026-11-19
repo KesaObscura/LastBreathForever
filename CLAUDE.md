@@ -5,7 +5,7 @@ left. Plain Lua 5.1, no libraries. Third addon of the Forever series with Full M
 Full Health Forever (same owner, same rules).
 Files load in TOC order: Locale.lua (9 languages) -> Skin.lua (the series' window look, a copy of
 Full Mana Forever's with this addon's colour and logo) -> Core.lua (the seconds, the frame on
-screen, commands) -> Options.lua (settings window). Settings: `LastBreathForeverDB` (account-wide).
+screen, commands) -> Options.lua (settings window) -> SelfTest.lua (`/lbf selftest`). Settings: `LastBreathForeverDB` (account-wide).
 
 ## Rules
 

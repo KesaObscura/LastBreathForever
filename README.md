@@ -56,6 +56,7 @@ Forever series with [Full Mana Forever](https://github.com/KesaObscura/FullManaF
 | `/lbf lock` | Locks them in place (a fight locks them too) |
 | `/lbf reset` | Puts them back in the middle of the screen |
 | `/lbf check` | Shows what the game answered in the last fights (for bug reports) |
+| `/lbf selftest` | Tries every setting for about 40 seconds and lists any error (`/lbf selftest stop` ends it) |
 | `/lbf help` | Lists the commands |
 
 ## Install
