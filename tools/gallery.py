@@ -75,7 +75,9 @@ def social(im):
 # names below the crops are cut off, the target-of-target frame is blurred
 pull = shot("172220", (800, 175, 1300, 330), 2.4)
 make("01_nameplates.png", "Which mob dies first?", None, pull, feature=True)
-pack = shot("172254", (880, 175, 1350, 345), 2.2, [(1212, 208, 1305, 242), (1200, 318, 1292, 345)])
+# 18 Nov, the Violet Hold: five enemies of one pull with their seconds (nameplates then with the
+# icon); an error text of the game above the target is blurred
+pack = shot("200744", (650, 146, 1300, 392), 1.85, [(1205, 318, 1290, 336), (650, 146, 993, 166), (993, 146, 1045, 159)])
 make("02_boss_and_adds.png", "Switch targets, keep the seconds",
      "Every enemy of the pull is counted, also while it is not your target.", pack)
 tgt = shot("171701", (1050, 200, 1290, 330), 2.6, [(1205, 315, 1290, 335)])
