@@ -1,8 +1,8 @@
 # CurseForge gallery images (1280x720) and the GitHub social preview (1280x640) from the owner's
 # in-game screenshots (English addon texts), in the gallery style of the Forever series.
 # Usage: python3 tools/gallery.py <work dir>/   (needs Pillow and the Inter fonts; not in the zip)
-# The work dir holds images/<name>.jpg and the icon as icon.png; the results go to <work dir>/out/.
-import sys
+# The work dir holds images/<name>.png (or .jpg) and the icon as icon.png; the results go to <work dir>/out/.
+import os, sys
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 BASE = sys.argv[1].rstrip("/") + "/" if len(sys.argv) > 1 else "./"
 W, H = 1280, 720
@@ -25,7 +25,8 @@ def background(h, glow_box):
     return Image.composite(Image.new("RGB", (W, h), ACCENT), bg, g)
 
 def shot(name, box, scale, blur=()):
-    im = Image.open(BASE + "images/%s.jpg" % name).convert("RGB")
+    path = BASE + "images/%s." % name
+    im = Image.open(path + "png" if os.path.exists(path + "png") else path + "jpg").convert("RGB")
     for b in blur: # names of real characters
         im.paste(im.crop(b).filter(ImageFilter.GaussianBlur(7)), b[:2])
     im = im.crop(box)
@@ -87,6 +88,7 @@ make("03_time_to_die.png", "Know when your target dies",
 both = shot("41", (1040, 205, 1560, 360), 2.0, [(1210, 321, 1282, 333), (1466, 346, 1538, 358)])
 make("04_last_seconds_focus.png", "Save the cooldown for the end",
      "The last seconds turn red. A second frame for your focus: healers keep the boss there.", both)
-opts = shot("165052", (0, 178, 1110, 630), 1.06)
+# 20 Nov, 0.2.2: the settings window with the new time labels (focus and nameplates with their own rows)
+opts = shot("191538", (36, 322, 1152, 776), 1.06)
 make("05_settings.png", "Target, focus, nameplates: your way", None, opts)
 social(shot("172220", (760, 172, 1300, 335), 1.2))

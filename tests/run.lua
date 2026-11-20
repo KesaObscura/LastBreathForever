@@ -1018,6 +1018,20 @@ test("nameplates: 'Show from' only 30 s, 1 min or 1:30; old saved values are mov
   assert(lim, "the nameplates' own tooltip")
 end)
 
+test("settings show times as 30 s, 1 min, 1:30, 5 min", function()
+  local ns = fresh({ db = { limit = 300, urgent = 60 } })
+  local want = { [10] = "10 s", [30] = "30 s", [60] = "1 min", [90] = "1:30", [120] = "2 min",
+    [300] = "5 min", [600] = "10 min" }
+  for v, s in pairs(want) do assert(ns.Dur(v) == s, v .. " -> " .. ns.Dur(v)) end
+  ns.ToggleOptions()
+  local seen = {}
+  for _, f in ipairs(M.frames) do
+    if f.kind == "FontString" and f.GetText and f:GetText() then seen[M.reveal(f:GetText())] = true end
+  end
+  assert(seen["5 min"] and seen["1 min"], "the window shows 5 min and 1 min")
+  assert(not seen["300 s"] and not seen["60 s"], "no 300 s / 60 s left")
+end)
+
 test("a count that ends while its seconds are still being worked out: no warning, nothing wrong shown", function()
   local ns = fresh({ db = { limit = 0, plateSame = true, focus = true }, cycle = true })
   local ms = 0
