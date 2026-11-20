@@ -5,7 +5,7 @@ left. Plain Lua 5.1, no libraries. Third addon of the Forever series with Full M
 Full Health Forever (same owner, same rules).
 Files load in TOC order: Locale.lua (9 languages) -> Skin.lua (the series' window look, a copy of
 Full Mana Forever's with this addon's colour and logo) -> Core.lua (the seconds, the frame on
-screen, commands) -> Options.lua (settings window). Settings: `LastBreathForeverDB` (account-wide).
+screen, commands) -> Options.lua (settings window) -> SelfTest.lua (`/lbf selftest`). Settings: `LastBreathForeverDB` (account-wide).
 
 ## Rules
 
@@ -23,6 +23,10 @@ screen, commands) -> Options.lua (settings window). Settings: `LastBreathForever
 - Other addons: ideas only, never code.
 - Every user-visible text in all 9 locale tables (esMX falls back to esES); every clickable
   control has a tooltip, also while greyed out.
+- **`/lbf selftest` grows with the addon** (owner, 19 Nov): every new or changed setting gets its
+  steps in `SelfTest.lua` (a flip, every choice of a list, the ends of a range, and a combination
+  where it is likely to break); a test fails for a setting in `DEFAULTS` or `LOOK` without steps.
+  Settings left out on purpose go into `SKIP` with the reason.
 - Run the tests after every change: `lua5.1 tests/run.lua` must end with `0 failed`.
 - After every change, hand the owner a test zip built from the committed state:
   `git archive --format=zip --prefix=LastBreathForever/ -o LastBreathForever-<version>-<hash>.zip HEAD -- . ':!tests' ':!tools' ':!docs' ':!.gitignore' ':!.github' ':!.pkgmeta' ':!.gitattributes' ':!CURSEFORGE.md' ':!CLAUDE.md'`

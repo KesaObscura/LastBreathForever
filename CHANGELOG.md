@@ -1,3 +1,8 @@
+**Last Breath Forever 0.2.1**
+
+Also new:
+- `/lbf selftest`: tries every setting for about 40 seconds and lists any error with the setting it came from; your settings come back at the end (also after a /reload in the middle). `/lbf selftest stop` ends it early. Paste those lines in a bug report.
+
 **Last Breath Forever 0.2.0**
 
 - **Time to die on nameplates:** small seconds above every enemy that is being hit, also above your target and your focus: see which mob of a pull goes down first. From the last 30 s by default (1 min or 1:30 in the settings), above the enemy's debuffs, with their own size and rules or the target's; the height above the nameplate can be set.

@@ -1053,6 +1053,104 @@ test("a count that ends while its seconds are still being worked out: no warning
   UnitHealthPercent, debugprofilestop = real, nil
 end)
 
+local function settingsOf(db)
+  local t = {}
+  for _, k in ipairs({ "scale", "icon", "limit", "urgent", "elite", "focus", "focusSame", "plates",
+                       "allPlates", "plateSame", "plateY", "language" }) do t[k] = tostring(db[k]) end
+  for _, g in ipairs({ "f", "p" }) do
+    for _, k in ipairs({ "scale", "icon", "limit", "urgent", "elite" }) do t[g .. k] = tostring(db[g][k]) end
+  end
+  return t
+end
+local function sameSettings(a, b)
+  for k, v in pairs(a) do if b[k] ~= v then return false, k .. ": " .. v .. " -> " .. tostring(b[k]) end end
+  return true
+end
+local function chatHas(text)
+  for _, l in ipairs(M.chat) do if l:find(text, 1, true) then return l end end
+end
+-- a fight going on, so every setting meets real seconds on the target, focus and a nameplate
+local function selfTestFight(ns)
+  local b = mob("boss")
+  M.showPlate(1, b)
+  M.target, M.hp = b, 1 M.fire("PLAYER_TARGET_CHANGED")
+  M.focus = b M.fire("PLAYER_FOCUS_CHANGED")
+  M.combat = true M.fire("PLAYER_REGEN_DISABLED")
+  b.fighting = true
+  for _ = 1, 6 do b.hp = b.hp - 0.01 M.hp = b.hp M.hit(b) M.tick(1, 0) end
+  return b
+end
+
+test("/lbf selftest: every setting in turn, no errors, the player's settings come back", function()
+  local ns = fresh({ db = { scale = 1.3, limit = 120, urgent = 15, focus = true, language = "deDE" } })
+  local before = settingsOf(ns.db)
+  local b = selfTestFight(ns)
+  SlashCmdList.LASTBREATHFOREVER("selftest")
+  assert(ns.db.selftestBackup, "kept aside")
+  for _ = 1, 60 do b.hp = math.max(0.05, b.hp - 0.004) M.hp = b.hp M.hit(b) M.tick(1, 0) end
+  local done = chatHas("self-test done")
+  assert(done and done:find("No errors", 1, true) and done:find("in combat", 1, true), tostring(done))
+  local n = tonumber(done:match("(%d+) of %d+ settings"))
+  assert(n and n > 60, "steps: " .. tostring(n))
+  assert(ns.db.selftestBackup == nil)
+  assert(sameSettings(before, settingsOf(ns.db)))
+  assert(ns.lang == "deDE", "the language is back")
+end)
+
+test("/lbf selftest: an error is found and named after the setting it came from", function()
+  local ns = fresh({ db = { limit = 300 } })
+  local b = selfTestFight(ns)
+  local real = UnitHealthPercent
+  UnitHealthPercent = function(...) if ns.db.limit == 600 then error("boom") end return real(...) end
+  local apply = ns.Apply
+  ns.Apply = function(...) if ns.db.p.scale == 3 then error("bang") end return apply(...) end
+  SlashCmdList.LASTBREATHFOREVER("selftest")
+  for _ = 1, 60 do b.hp = math.max(0.05, b.hp - 0.004) M.hp = b.hp M.hit(b) M.tick(1, 0) end
+  UnitHealthPercent, ns.Apply = real, apply
+  assert(chatHas("self-test done"))
+  -- the game refusing an answer is named too (here: the seconds of the target with "10 min")
+  assert(chatHas("target.limit=600: "), "the update error, named: " .. table.concat(M.chat, " | "):sub(-600))
+  assert(chatHas("plates.scale=3: ") and chatHas("plates.scale=3: "):find("bang"), "the settings error, named")
+  assert(not chatHas(ns.L.warnBroken), "no warning in the chat meanwhile")
+  assert(ns.db.limit == 300)
+end)
+
+test("/lbf selftest cut off by a reload: the settings come back at the next login; stop works", function()
+  local ns = fresh({ db = { scale = 1.4, urgent = 20 } })
+  local before = settingsOf(ns.db)
+  SlashCmdList.LASTBREATHFOREVER("selftest")
+  M.tick(3, 0)
+  assert(not sameSettings(before, settingsOf(ns.db)) or ns.db.selftestBackup, "in the middle")
+  local saved = LastBreathForeverDB
+  ns = fresh({ db = saved })
+  assert(chatHas("self-test was cut off"))
+  assert(ns.db.selftestBackup == nil and sameSettings(before, settingsOf(ns.db)))
+  SlashCmdList.LASTBREATHFOREVER("selftest")
+  M.tick(4, 0)
+  SlashCmdList.LASTBREATHFOREVER("selftest stop")
+  assert(chatHas("self-test stopped"))
+  assert(ns.db.selftestBackup == nil and sameSettings(before, settingsOf(ns.db)))
+end)
+
+test("/lbf selftest covers every setting: a new setting needs its steps (or a reason to skip it)", function()
+  local ns = fresh()
+  local keys = {}
+  for _, k in ipairs(ns.SELFTEST_KEYS) do keys[k] = true end
+  for k in pairs(ns.DEFAULTS) do
+    assert(keys[k] or ns.SELFTEST_SKIP[k], "setting '" .. k .. "' is not in /lbf selftest: add steps for it")
+  end
+  for _, k in ipairs(ns.LOOK) do assert(keys[k], "look '" .. k .. "' is not in /lbf selftest") end
+  local names = {}
+  for _, st in ipairs(ns.SelfTestSteps()) do names[#names + 1] = st.name end
+  local all = table.concat(names, "\n")
+  for _, k in ipairs(ns.SELFTEST_KEYS) do
+    assert(all:find(k, 1, true), "no step changes '" .. k .. "'")
+  end
+  for _, prefix in ipairs({ "target.", "focus.", "plates." }) do
+    for _, k in ipairs(ns.LOOK) do assert(all:find(prefix .. k, 1, true), "no step for " .. prefix .. k) end
+  end
+end)
+
 for _, t in ipairs(tests) do
   local c0 = os.clock() local ok, err = pcall(t.fn) if os.getenv("TIMES") then io.write(string.format("%6.2f ", os.clock() - c0)) end
   if ok then io.write("ok   ", t.name, "\n") else failed = failed + 1 io.write("FAIL ", t.name, "\n     ", tostring(err), "\n") end

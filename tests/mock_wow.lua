@@ -198,7 +198,7 @@ end
 
 function M.load(root)
   local ns = {}
-  for _, file in ipairs({ "Locale.lua", "Skin.lua", "Core.lua", "Options.lua" }) do
+  for _, file in ipairs({ "Locale.lua", "Skin.lua", "Core.lua", "Options.lua", "SelfTest.lua" }) do
     assert(loadfile(root .. file))("LastBreathForever", ns)
   end
   for _, f in ipairs(M.frames) do if f.scripts.OnUpdate then M.ev = f end end
@@ -211,12 +211,26 @@ function M.fire(e, ...)
     if f.scripts.OnEvent then f.scripts.OnEvent(f, e, ...) end
   end
 end
+-- C_Timer.After: run when their time has come, checked at every tick
+M.timers = {}
+C_Timer = { After = function(d, f) M.timers[#M.timers + 1] = { at = M.now + d, f = f } end }
+function M.runTimers()
+  local due = {}
+  for i = #M.timers, 1, -1 do
+    if M.timers[i].at <= M.now + 1e-9 then due[#due + 1] = table.remove(M.timers, i) end
+  end
+  for i = #due, 1, -1 do due[i].f() end
+end
+local errorHandler = function(e) error(e, 0) end
+function geterrorhandler() return errorHandler end
+function seterrorhandler(f) errorHandler = f end
 function M.tick(seconds, hpPerSecond)
   local steps = math.floor(seconds / 0.2 + 0.5)
   for _ = 1, steps do
     M.now = M.now + 0.2
     M.hp = math.max(0, M.hp - (hpPerSecond or 0) * 0.2)
     M.ev.scripts.OnUpdate(M.ev, 0.2)
+    M.runTimers()
   end
 end
 -- a hit on a mob (the target when none is given): the game tells every unit name it has
