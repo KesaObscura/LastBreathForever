@@ -87,6 +87,7 @@ make("03_time_to_die.png", "Know when your target dies",
 both = shot("41", (1040, 205, 1560, 360), 2.0, [(1210, 321, 1282, 333), (1466, 346, 1538, 358)])
 make("04_last_seconds_focus.png", "Save the cooldown for the end",
      "The last seconds turn red. A second frame for your focus: healers keep the boss there.", both)
-opts = shot("165052", (0, 178, 1110, 630), 1.06)
+# 20 Nov, 0.2.2: the settings window with the new time labels (focus and nameplates with their own rows)
+opts = shot("202611201915", (36, 322, 1152, 776), 1.06)
 make("05_settings.png", "Target, focus, nameplates: your way", None, opts)
 social(shot("172220", (760, 172, 1300, 335), 1.2))
