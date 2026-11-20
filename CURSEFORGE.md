@@ -32,7 +32,7 @@ Switch on the **focus frame** and `/focus` the boss: its seconds stay on screen 
 Three columns, target, focus and nameplates (the focus frame and the nameplates can use the target's settings or their own):
 
 - **Show from**: only once about 30 s, 1, 2, 5 or 10 minutes or less are left (5 minutes by default), or always.
-- **Last seconds in red**: off, 5, 10, 15, 20, 30, 45 or 60 s.
+- **Last seconds in red**: off, 5, 10, 15, 20, 30 or 45 s, or 1 min.
 - **Only elites and bosses**, **size**, **icon**.
 - **Nameplates:** count enemies that are not your target, seconds above every nameplate, their own size and rules (from 30 s, 1 min or 1:30), the height above the nameplate.
 - **Language**: your game's language or any of the 9; the window opens where you left it.

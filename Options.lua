@@ -157,6 +157,14 @@ local function InList(list)
   end
 end
 
+-- a length of time in the settings: "30 s", "1:30", "5 min"
+local function Dur(v)
+  if v < 60 then return string.format(L.fmtSecShort, v) end
+  if v % 60 == 0 then return string.format(L.fmtMinShort, v / 60) end
+  return string.format("%d:%02d", math.floor(v / 60), v % 60)
+end
+ns.Dur = Dur
+
 -- a section header: white text with the game's divider under it, `width` wide
 local function Header(parent, text, width)
   local fs = Label(parent, text, _G.GameFontHighlightMedium and "GameFontHighlightMedium" or "GameFontHighlight")
@@ -338,7 +346,7 @@ Build = function()
     local limit = Stepper(win, L.optLimit, plates and L.tipPlateLimit or L.tipLimit,
       function() return cfg().limit end,
       function(v) cfg().limit = v end,
-      { fmt = function(v) return v == 0 and L.optAlways or string.format(L.fmtSecShort, v) end,
+      { fmt = function(v) return v == 0 and L.optAlways or Dur(v) end,
         next = function(v, dir)
           local list = (plates and cfg() == db.p) and ns.PLATE_LIMITS or ns.LIMITS
           return InList(list)(v, dir)
@@ -348,7 +356,7 @@ Build = function()
     local urgent = Stepper(win, L.optUrgent, L.tipUrgent,
       function() return cfg().urgent end,
       function(v) cfg().urgent = v end,
-      { fmt = function(v) return v == 0 and L.optOff or string.format(L.fmtSecShort, v) end, next = InList(ns.URGENTS) },
+      { fmt = function(v) return v == 0 and L.optOff or Dur(v) end, next = InList(ns.URGENTS) },
       enabledIf)
     at(urgent.label)
     local icon = Check(win, L.optIcon, L.tipIcon, function() return cfg().icon end,

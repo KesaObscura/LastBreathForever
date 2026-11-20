@@ -3,7 +3,7 @@
 -- The game works the seconds out itself and hands back a value that can only be shown.
 
 local ADDON, ns = ...
-ns.VERSION = "0.2.1"
+ns.VERSION = "0.2.2"
 -- the commit of a packaged build (filled in by git archive); nil in a checkout
 ns.BUILD = ("$Format:%h$"):match("^%x+$")
 ns.VERSION_TEXT = ns.VERSION .. (ns.BUILD and " (" .. ns.BUILD .. ")" or "")

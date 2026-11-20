@@ -1,3 +1,8 @@
+**Last Breath Forever 0.2.2**
+
+Also new:
+- The settings show times the way you read them: "Show from" as 1 min, 1:30, 2 min, 5 min or 10 min instead of 60 s, 90 s, 120 s, 300 s or 600 s; "Last seconds in red" as 1 min instead of 60 s. In all 9 languages.
+
 **Last Breath Forever 0.2.1**
 
 Also new:
