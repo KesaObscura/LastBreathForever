@@ -7,7 +7,7 @@ do
   local STEP = 0.5 -- seconds per step: a full update of the seconds and a few frames
   -- what a step may change (unlocking the frames is left out: it moves things under the mouse)
   local KEYS = { "scale", "icon", "limit", "urgent", "elite", "focus", "focusSame", "plates",
-    "allPlates", "plateSame", "plateY", "language" }
+    "allPlates", "plateSame", "plateAt", "plateY", "plateX", "language" }
   -- settings no step changes, on purpose
   local SKIP = { locked = true }
   ns.SELFTEST_KEYS, ns.SELFTEST_SKIP = KEYS, SKIP
@@ -62,8 +62,15 @@ do
     for _, k in ipairs({ "focus", "focusSame", "plates", "allPlates", "plateSame" }) do
       add(k .. " flipped", function(db) db[k] = not db[k] end)
     end
-    add("plateY=-20", function(db) db.plates, db.allPlates, db.plateY = true, true, -20 end)
-    add("plateY=60", function(db) db.plates, db.allPlates, db.plateY = true, true, 60 end)
+    local function plates(db) db.plates, db.allPlates = true, true end
+    for _, at in ipairs(ns.PLATE_AT) do
+      add("plateAt=" .. at, function(db) plates(db) db.plateAt = at end)
+    end
+    for _, k in ipairs({ "plateY", "plateX" }) do
+      local max = k == "plateY" and ns.PLATE_Y or ns.PLATE_X
+      add(k .. "=-" .. max, function(db) plates(db) db[k] = -max end)
+      add(k .. "=" .. max, function(db) plates(db) db[k] = max end)
+    end
     for _, l in ipairs(ns.LANGUAGES) do
       add("language=" .. l.code, function(db) db.language = l.code end)
     end
@@ -89,6 +96,14 @@ do
     add("only elites and bosses everywhere", function(db)
       all(db, true)
       db.elite, db.f.elite, db.p.elite = true, true, true
+    end)
+    add("nameplates right, far down and right, biggest", function(db)
+      all(db, true)
+      db.plateAt, db.plateY, db.plateX, db.p.scale = "RIGHT", -ns.PLATE_Y, ns.PLATE_X, 3
+    end)
+    add("nameplates left, far up and left, smallest, follow the target", function(db)
+      all(db, false)
+      db.plateAt, db.plateY, db.plateX, db.scale = "LEFT", ns.PLATE_Y, -ns.PLATE_X, 0.5
     end)
     add("nameplates counted but not shown", function(db)
       db.plates, db.allPlates = true, false

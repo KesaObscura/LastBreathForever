@@ -111,7 +111,7 @@ local function Stepper(parent, text, tip, get, set, o, enabledIf)
   s.minus = ArrowButton(parent, -1)
   s.minus:SetPoint("LEFT", s.label, "LEFT", VALUE_X, 0)
   s.field = CreateFrame("Frame", nil, parent)
-  s.field:SetSize(64, 20)
+  s.field:SetSize(72, 20) -- room for "Izquierda", "Au-dessus"
   s.field:SetPoint("LEFT", s.minus, "RIGHT", 4, 0)
   Skin.Field(s.field)
   s.value = Label(s.field, "", "GameFontHighlight")
@@ -413,16 +413,31 @@ Build = function()
   control(plates, allPlates, plateSame)
   local py, plateRows = Column(PX + IN, rowsY, function() return db.plateSame and db or db.p end,
     function() return db.plates and db.allPlates and not db.plateSame end, ns.Apply, true)
-  -- a sixth row only here: how high above the nameplate
-  local plateY = Stepper(win, L.optPlateY, L.tipPlateY,
-    function() return db.plateY end,
-    function(v) db.plateY = v; ns.Apply() end,
-    { fmt = function(v) return string.format("%+d", v) end,
-      next = function(v, dir) return math.max(-20, math.min(60, v + dir * 2)) end },
-    function() return db.plates and db.allPlates end)
-  plateY.label:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, py)
+  -- rows only here: where the seconds stand at the nameplate, and how far moved from there
+  local platesOn = function() return db.plates and db.allPlates end
+  local AT_TEXT = { TOP = "optAbove", RIGHT = "optRight", LEFT = "optLeft" }
+  local plateAt = Stepper(win, L.optPlateAt, L.tipPlateAt,
+    function() return db.plateAt end,
+    function(v) db.plateAt = v; ns.Apply() end,
+    { fmt = function(v) return L[AT_TEXT[v]] end, next = InList(ns.PLATE_AT) },
+    platesOn)
+  plateAt.label:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, py)
   py = py - ROW
-  control(plateY.minus, plateY.plus, plateY.tipArea)
+  local function Offset(text, tip, key, max)
+    local o = Stepper(win, text, tip,
+      function() return db[key] end,
+      function(v) db[key] = v; ns.Apply() end,
+      { fmt = function(v) return string.format("%+d", v) end,
+        next = function(v, dir) return math.max(-max, math.min(max, v + dir * 2)) end },
+      platesOn)
+    o.label:SetPoint("TOPLEFT", win, "TOPLEFT", PX + IN, py)
+    py = py - ROW
+    return o
+  end
+  local plateY = Offset(L.optPlateY, L.tipPlateY, "plateY", ns.PLATE_Y)
+  local plateX = Offset(L.optPlateX, L.tipPlateX, "plateX", ns.PLATE_X)
+  control(plateAt.minus, plateAt.plus, plateAt.tipArea, plateY.minus, plateY.plus, plateY.tipArea,
+    plateX.minus, plateX.plus, plateX.tipArea)
   y = math.min(y, py)
 
   -- what the seconds are, across both columns
@@ -481,7 +496,7 @@ Build = function()
   control(lang, langTip, lock, reset)
   win:SetHeight(-(y - 22 - 16))
   win.widgets = { show = show, sameAs = sameAs, lang = lang, lock = lock, reset = reset,
-    plates = plates, allPlates = allPlates, plateSame = plateSame, plateRows = plateRows, plateY = plateY,
+    plates = plates, allPlates = allPlates, plateSame = plateSame, plateRows = plateRows, plateY = plateY, plateX = plateX, plateAt = plateAt,
     leftRows = leftRows, rightRows = rightRows }
   ns.optionsWindow = win
 end

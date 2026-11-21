@@ -13,7 +13,7 @@ A small frame next to your target shows **"~12 s"** (longer times as "~2:30" or 
 - **About how many seconds your target has left**, worked out from how fast it has been losing health in this fight. Always "about", never exact: when the damage changes a lot (a burn phase, the group arriving late), the number follows with a delay. In the last part of a fight it is close.
 - **No number is better than a wrong one.** The seconds appear once the target has lost a few percent; in a group or on a boss also after about 10 s, because the first seconds of a pull say too little. Meanwhile a **dim icon** shows that the addon is counting.
 - **Joined late?** A boss you take into your target at 50 %, the next mob of a pull: it gets its seconds too, a little later, once it has lost some more health.
-- **Time to die on nameplates:** small seconds above every enemy that is being hit, also above your target and your focus: see which mob of a pull goes down first and where to put the next cast. The same enemy shows the same number everywhere. Only for the last 30 s by default (up to 1:30), above the enemy's debuffs.
+- **Time to die on nameplates:** small seconds above every enemy that is being hit, also above your target and your focus: see which mob of a pull goes down first and where to put the next cast. The same enemy shows the same number everywhere. Only for the last 30 s by default (up to 1:30), above the enemy's debuffs, or to the right or left of the nameplate.
 - **Boss and adds at the same time:** every enemy with a nameplate is counted from its first hit, also while it is not your target. Switch from an add to the boss and back, and the seconds are there at once. Needs the enemy nameplates switched on.
 
 ![Seconds above every enemy of a dungeon pull](https://raw.githubusercontent.com/KesaObscura/LastBreathForever/main/docs/images/every-enemy-of-the-pull.png)
@@ -34,7 +34,7 @@ Three columns, target, focus and nameplates (the focus frame and the nameplates 
 - **Show from**: only once about 30 s, 1, 2, 5 or 10 minutes or less are left (5 minutes by default), or always.
 - **Last seconds in red**: off, 5, 10, 15, 20, 30 or 45 s, or 1 min.
 - **Only elites and bosses**, **size**, **icon**.
-- **Nameplates:** count enemies that are not your target, seconds above every nameplate, their own size and rules (from 30 s, 1 min or 1:30), the height above the nameplate.
+- **Nameplates:** count enemies that are not your target, seconds above every nameplate, their own size and rules (from 30 s, 1 min or 1:30), above, right or left of the nameplate, moved up, down, left or right to fit your nameplate addon.
 - **Language**: your game's language or any of the 9; the window opens where you left it.
 - Unlock the frames to drag them anywhere; a fight locks them again.
 
@@ -58,7 +58,7 @@ Three columns, target, focus and nameplates (the focus frame and the nameplates 
 - **Does it work in WoW Classic Era, Hardcore or retail?** No. It is made for World of Warcraft: Forever (client 1.60.1) and its addon rules.
 - **I switched to an add and back to the boss in a dungeon, and the number took a moment.** Keep the enemy nameplates switched on (the addon then counts every enemy all fight long), or put the boss on your focus.
 - **No seconds on the nameplates?** Switch on the enemy nameplates in the game. The seconds show only above enemies that are being hit, and only for the last seconds (30 s by default; up to 1:30 in the settings).
-- **The numbers of a big pull sit on top of each other.** So do the nameplates: let the game stack its nameplates instead of overlapping them (if its settings offer it), or make the seconds smaller in the nameplates column.
+- **The numbers of a big pull sit on top of each other.** Put them to the right or left of the nameplates (Nameplates column, "Place on the nameplate"): then every number stays in the row of its own enemy. Smaller seconds help too.
 - **Does it need other addons?** No libraries, nothing else.
 
 ## Tested so far

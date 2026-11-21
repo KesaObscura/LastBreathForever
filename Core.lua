@@ -3,7 +3,7 @@
 -- The game works the seconds out itself and hands back a value that can only be shown.
 
 local ADDON, ns = ...
-ns.VERSION = "0.2.2"
+ns.VERSION = "0.2.3"
 -- the commit of a packaged build (filled in by git archive); nil in a checkout
 ns.BUILD = ("$Format:%h$"):match("^%x+$")
 ns.VERSION_TEXT = ns.VERSION .. (ns.BUILD and " (" .. ns.BUILD .. ")" or "")
@@ -29,6 +29,8 @@ local CAP = 3600           -- the longest estimate (seconds)
 local SLOTS = 8            -- targets remembered during one fight
 local PLATES = 20          -- enemies followed by their nameplates at once
 ns.LIMITS = { 0, 30, 60, 120, 300, 600 } -- "Show from": 0 = always
+ns.PLATE_AT = { "TOP", "RIGHT", "LEFT" } -- above, right or left of the nameplate
+ns.PLATE_Y, ns.PLATE_X = 60, 100 -- the offsets go from minus to plus this
 ns.PLATE_LIMITS = { 30, 60, 90 } -- above nameplates: seconds only, up to 1:30
 ns.URGENTS = { 0, 5, 10, 15, 20, 30, 45, 60 } -- "Last seconds in red": 0 = off
 -- longer times read as minutes: "~2:30" (to 10 s) from LONG s up, "~12 min" from MINUTES s up
@@ -48,7 +50,9 @@ local DEFAULTS = {
   plates = true,   -- follow enemies by their nameplates, also while they are not the target
   allPlates = true, -- seconds above every enemy's nameplate
   plateSame = false, -- the nameplates use the target frame's settings (own ones by default)
-  plateY = 6,      -- height of the seconds above the nameplate (pixels)
+  plateAt = "TOP", -- where the seconds stand at the nameplate: above it, right or left of it
+  plateY = 6,      -- moved up (+) or down (-) from there (pixels)
+  plateX = 0,      -- moved right (+) or left (-) from there (pixels)
   language = "auto", -- "auto" = the game's language, else one of ns.LANGUAGES
 }
 ns.DEFAULTS = DEFAULTS
@@ -133,7 +137,9 @@ local function InitDB()
     -- small, plain numbers over the nameplates: only the last half minute, red at 5 s
     db.p = { scale = 0.6, icon = false, limit = 30, urgent = 5, elite = false }
   end
-  if db.plateY < -20 or db.plateY > 60 then db.plateY = DEFAULTS.plateY end
+  if type(db.plateY) ~= "number" or math.abs(db.plateY) > ns.PLATE_Y then db.plateY = DEFAULTS.plateY end
+  if type(db.plateX) ~= "number" or math.abs(db.plateX) > ns.PLATE_X then db.plateX = DEFAULTS.plateX end
+  if not InList(ns.PLATE_AT, db.plateAt) then db.plateAt = DEFAULTS.plateAt end
   look(db.p, ns.PLATE_LIMITS)
   db.onPlate = nil -- an option of a test build
   local known = db.language == "auto"
@@ -597,17 +603,20 @@ end
 ns.Cfg = Cfg
 
 
+-- the point of the seconds and the point of the nameplate they are fixed to
+local PLATE_POINTS = { TOP = { "BOTTOM", "TOP" }, RIGHT = { "LEFT", "RIGHT" }, LEFT = { "RIGHT", "LEFT" } }
+
 local function Place(v)
   local hud = v.hud
   local scale = Cfg(v).scale
   hud:SetScale(scale)
   hud:ClearAllPoints()
   local p = db[v.pointKey]
-  -- above its unit's nameplate while locked (the seconds over other enemies' nameplates are
-  -- always there); its own place while unlocked or without one
+  -- at its unit's nameplate (above, right or left of it); its own place without one
   local plate = v.plateView and PlateFrame(v.unit) or nil
   v.anchor = plate
-  if plate and pcall(hud.SetPoint, hud, "BOTTOM", plate, "TOP", 0, db.plateY / scale) then
+  local at = PLATE_POINTS[db.plateAt] or PLATE_POINTS.TOP
+  if plate and pcall(hud.SetPoint, hud, at[1], plate, at[2], db.plateX / scale, db.plateY / scale) then
     return
   end
   v.anchor = nil

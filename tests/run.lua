@@ -306,7 +306,7 @@ test("settings: every control has a tooltip, also the greyed-out ones", function
   ns.ToggleOptions()
   local win = ns.optionsWindow
   assert(win and win:IsShown())
-  assert(#win.controls == 46, "controls: " .. #win.controls)
+  assert(#win.controls == 52, "controls: " .. #win.controls)
   local py = win.widgets.plateY
   py.plus.scripts.OnClick(py.plus)
   assert(ns.db.plateY == 8, "height: steps of 2")
@@ -978,6 +978,42 @@ test("nameplates: the seconds stand at the chosen height above the nameplate", f
   assert(p and p[1] == "BOTTOM" and p[3] == "TOP" and math.abs(p[5] * ns.db.p.scale - 20) < 1e-6, "20 above")
 end)
 
+test("nameplates: the seconds stand above, right or left of the nameplate, moved by both offsets", function()
+  local ns = fresh({ db = { plateAt = "RIGHT", plateX = 10, plateY = -4 } })
+  M.showPlate(1, mob("x"))
+  local v = ns.plateViews.nameplate1
+  ns.Apply()
+  local s = ns.db.p.scale
+  local p = v.hud.point
+  assert(p[1] == "LEFT" and p[3] == "RIGHT", "right of the nameplate")
+  assert(math.abs(p[4] * s - 10) < 1e-6 and math.abs(p[5] * s + 4) < 1e-6, "moved 10 right, 4 down")
+  ns.db.plateAt = "LEFT" ns.Apply()
+  p = v.hud.point
+  assert(p[1] == "RIGHT" and p[3] == "LEFT", "left of the nameplate")
+  ns.db.plateAt = "TOP" ns.Apply()
+  p = v.hud.point
+  assert(p[1] == "BOTTOM" and p[3] == "TOP", "above the nameplate")
+  -- the settings window: every place in turn, both offsets to their ends
+  ns.ToggleOptions()
+  local w = ns.optionsWindow.widgets
+  local seen = {}
+  for _ = 1, 3 do seen[ns.db.plateAt] = true w.plateAt.plus.scripts.OnClick(w.plateAt.plus) end
+  assert(seen.TOP and seen.RIGHT and seen.LEFT, "three places")
+  for _ = 1, 80 do w.plateX.plus.scripts.OnClick(w.plateX.plus) end
+  assert(ns.db.plateX == 100 and not w.plateX.plus:IsEnabled(), "right up to 100")
+  for _ = 1, 120 do w.plateX.minus.scripts.OnClick(w.plateX.minus) end
+  assert(ns.db.plateX == -100, "left down to -100")
+  for _ = 1, 80 do w.plateY.minus.scripts.OnClick(w.plateY.minus) end
+  assert(ns.db.plateY == -60 and not w.plateY.minus:IsEnabled(), "down to -60")
+end)
+
+test("nameplates: a broken saved place or offset goes back to the default", function()
+  local ns = fresh({ db = { plateAt = "MIDDLE", plateX = 500, plateY = -61 } })
+  assert(ns.db.plateAt == "TOP" and ns.db.plateX == 0 and ns.db.plateY == 6)
+  ns = fresh({ db = { plateAt = "LEFT", plateX = -100, plateY = 60 } })
+  assert(ns.db.plateAt == "LEFT" and ns.db.plateX == -100 and ns.db.plateY == 60, "the ends are kept")
+end)
+
 test("a big pull never stalls a frame: the work is spread over frames, a cycle every 0.4 s", function()
   local ns = fresh({ db = { limit = 0, plateSame = true }, cycle = true })
   local ms = 0
@@ -1070,7 +1106,7 @@ end)
 local function settingsOf(db)
   local t = {}
   for _, k in ipairs({ "scale", "icon", "limit", "urgent", "elite", "focus", "focusSame", "plates",
-                       "allPlates", "plateSame", "plateY", "language" }) do t[k] = tostring(db[k]) end
+                       "allPlates", "plateSame", "plateAt", "plateY", "plateX", "language" }) do t[k] = tostring(db[k]) end
   for _, g in ipairs({ "f", "p" }) do
     for _, k in ipairs({ "scale", "icon", "limit", "urgent", "elite" }) do t[g .. k] = tostring(db[g][k]) end
   end

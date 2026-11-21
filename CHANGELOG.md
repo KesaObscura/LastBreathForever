@@ -1,3 +1,8 @@
+**Last Breath Forever 0.2.3**
+
+Asked for by players:
+- The seconds on the nameplates can stand above, to the right or to the left of the nameplate, and be moved up, down, left or right from there: fit them to your nameplate addon. Beside the nameplate, each number stays in the row of its own enemy, also when the nameplates of a big pull are stacked.
+
 **Last Breath Forever 0.2.2**
 
 Also new:
